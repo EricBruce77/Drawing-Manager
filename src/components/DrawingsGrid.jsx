@@ -1,0 +1,979 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabaseClient'
+import DrawingCard from './DrawingCard'
+import DrawingAnnotator from './DrawingAnnotator'
+import { Document, Page, pdfjs } from 'react-pdf'
+import 'react-pdf/dist/Page/AnnotationLayer.css'
+import 'react-pdf/dist/Page/TextLayer.css'
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+
+// Set up PDF.js worker - use bundled worker instead of CDN (React 19 + pdf.js v5 blocks CDN)
+// Fallback to CDN if the local worker path fails (e.g., dev server cannot serve ?url assets)
+pdfjs.GlobalWorkerOptions.workerSrc =
+  workerSrc && !workerSrc.includes('node_modules')
+    ? workerSrc
+    : `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
+
+export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, refreshToken }) {
+  const [drawings, setDrawings] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selectedDrawing, setSelectedDrawing] = useState(null)
+
+  useEffect(() => {
+    fetchDrawings()
+  }, [searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, refreshToken])
+
+  // Real-time subscription for new drawings (e.g., from Google Drive via n8n)
+  useEffect(() => {
+    const channel = supabase
+      .channel('drawings-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'drawings'
+        },
+        (payload) => {
+          console.log('New drawing added:', payload.new)
+          // Refresh drawings when a new one is inserted
+          fetchDrawings()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'drawings'
+        },
+        (payload) => {
+          console.log('Drawing updated:', payload.new)
+          // Refresh when a drawing is updated
+          fetchDrawings()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'drawings'
+        },
+        (payload) => {
+          console.log('Drawing deleted:', payload.old)
+          // Refresh when a drawing is deleted
+          fetchDrawings()
+        }
+      )
+      .subscribe()
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [searchQuery, selectedCustomer, selectedProject, showUpdatesOnly]) // Re-subscribe when filters change
+
+  // Helper function to build base select query
+  const baseSelect = () =>
+    supabase
+      .from('drawings')
+      .select(`
+        *,
+        needs_update,
+        update_description,
+        update_requested_at,
+        update_requested_by
+      `)
+      .eq('status', 'active')
+
+  // Helper to apply customer, project, and updates filter if selected
+  const applySharedFilters = (query) => {
+    let filteredQuery = query
+    if (selectedCustomer) {
+      filteredQuery = filteredQuery.eq('customer_name', selectedCustomer)
+    }
+    if (selectedProject) {
+      filteredQuery = filteredQuery.eq('project_name', selectedProject)
+    }
+    if (showUpdatesOnly) {
+      filteredQuery = filteredQuery.eq('needs_update', true)
+    }
+    return filteredQuery
+  }
+
+  const fetchDrawings = async () => {
+    setLoading(true)
+    try {
+      // Normalize search query: trim and lowercase for consistency
+      const normalizedQuery = searchQuery?.trim()
+
+      // No search query - return all (with optional customer filter)
+      if (!normalizedQuery) {
+        const { data, error } = await applySharedFilters(
+          baseSelect().order('created_at', { ascending: false })
+        )
+        if (error) throw error
+
+        // Thumbnails are already public URLs from the Edge Function, use them directly
+        setDrawings(data || [])
+        return
+      }
+
+      // Use advanced search RPC with relevance ranking
+      // The RPC handles exact matches, partial matches, and full-text search
+      const { data: rankedMatches, error: searchError } = await supabase.rpc(
+        'search_drawings',
+        { search_query: normalizedQuery }
+      )
+
+      if (searchError) throw searchError
+
+      // If no results from RPC, set empty array
+      if (!rankedMatches || rankedMatches.length === 0) {
+        setDrawings([])
+        return
+      }
+
+      // Extract IDs from ranked results
+      const ids = rankedMatches.map((match) => match.id)
+
+      // Fetch full drawing data for matched IDs (with customer filter if needed)
+      const { data: fullDrawings, error: fetchError } = await applySharedFilters(
+        baseSelect().in('id', ids)
+      )
+
+      if (fetchError) throw fetchError
+
+      // Sort by relevance order from RPC (already sorted by relevance DESC)
+      const order = new Map(ids.map((id, index) => [id, index]))
+      const sortedDrawings = (fullDrawings || []).sort(
+        (a, b) => order.get(a.id) - order.get(b.id)
+      )
+
+      // Thumbnails are already public URLs from the Edge Function, use them directly
+      setDrawings(sortedDrawings)
+    } catch (error) {
+      console.error('Error fetching drawings:', error)
+      alert('Error searching drawings: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDownload = async (drawing) => {
+    try {
+      // Check if file_url exists
+      if (!drawing.file_url) {
+        alert('File path not found. This drawing may be from an older version.')
+        return
+      }
+
+      // Get signed URL for download (file_url contains the storage path)
+      const { data, error } = await supabase.storage
+        .from('drawings')
+        .createSignedUrl(drawing.file_url, 60)
+
+      if (error) throw error
+
+      // Download file
+      const link = document.createElement('a')
+      link.href = data.signedUrl
+      link.download = drawing.file_name
+      link.click()
+
+      // Log activity
+      await supabase.from('activity_log').insert({
+        drawing_id: drawing.id,
+        activity: 'download',
+        details: { file_name: drawing.file_name }
+      })
+    } catch (error) {
+      console.error('Error downloading:', error)
+      alert('Error downloading file: ' + error.message)
+    }
+  }
+
+  const handleDelete = async (drawing) => {
+    // Confirmation dialog
+    const confirmed = window.confirm(
+      `Are you sure you want to delete drawing "${drawing.part_number}"?\n\nThis action cannot be undone.`
+    )
+
+    if (!confirmed) return
+
+    try {
+      // Delete file from storage
+      if (drawing.file_url) {
+        const { error: storageError } = await supabase.storage
+          .from('drawings')
+          .remove([drawing.file_url])
+
+        if (storageError) {
+          console.warn('Storage deletion warning:', storageError)
+          // Continue even if storage deletion fails
+        }
+      }
+
+      // Delete database record
+      const { error: dbError } = await supabase
+        .from('drawings')
+        .delete()
+        .eq('id', drawing.id)
+
+      if (dbError) throw dbError
+
+      alert('Drawing deleted successfully!')
+
+      // Close modal and refresh list
+      setSelectedDrawing(null)
+      fetchDrawings()
+    } catch (error) {
+      console.error('Error deleting drawing:', error)
+      alert('Error deleting drawing: ' + error.message)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    )
+  }
+
+  if (drawings.length === 0) {
+    return (
+      <div className="bg-slate-800 rounded-lg border border-slate-700 p-12 text-center">
+        <svg className="mx-auto h-12 w-12 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <h3 className="mt-4 text-lg font-medium text-white">No drawings found</h3>
+        <p className="mt-2 text-slate-400">
+          {searchQuery || selectedCustomer
+            ? 'Try adjusting your search or filters'
+            : 'Upload your first drawing to get started'}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {drawings.map((drawing) => (
+          <DrawingCard
+            key={drawing.id}
+            drawing={drawing}
+            onView={() => setSelectedDrawing(drawing)}
+            onDownload={() => handleDownload(drawing)}
+            showCompletionStatus={true}
+            onStatusChange={fetchDrawings}
+          />
+        ))}
+      </div>
+
+      {/* Drawing Detail Modal */}
+      {selectedDrawing && (
+        <DrawingDetailModal
+          drawing={selectedDrawing}
+          onClose={() => setSelectedDrawing(null)}
+          onDownload={() => handleDownload(selectedDrawing)}
+          onDelete={() => handleDelete(selectedDrawing)}
+        />
+      )}
+    </>
+  )
+}
+
+// Drawing Detail Modal Component
+function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
+  const [fileUrl, setFileUrl] = useState(null)
+  const [loadingPreview, setLoadingPreview] = useState(true)
+  const [previewError, setPreviewError] = useState(null)
+  const [numPages, setNumPages] = useState(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [customers, setCustomers] = useState([])
+  const [projects, setProjects] = useState([])
+  const [editedData, setEditedData] = useState({
+    part_number: drawing.part_number,
+    revision: drawing.revision || 'A',
+    title: drawing.title || '',
+    description: drawing.description || '',
+    customer_name: drawing.customer_name || '',
+    project_name: drawing.project_name || ''
+  })
+
+  // Customer and Project creation state
+  const [newCustomerName, setNewCustomerName] = useState('')
+  const [showNewCustomer, setShowNewCustomer] = useState(false)
+  const [newProjectName, setNewProjectName] = useState('')
+  const [newProjectNumber, setNewProjectNumber] = useState('')
+  const [showNewProject, setShowNewProject] = useState(false)
+
+  // Zoom and pan state
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+
+  useEffect(() => {
+    const fetchFileUrl = async () => {
+      if (!drawing.file_url) {
+        const errorMsg = 'No file_url in database. This drawing may be from an older version.'
+        console.error('❌', errorMsg)
+        setPreviewError(errorMsg)
+        setLoadingPreview(false)
+        return
+      }
+
+      console.log('🔍 Attempting to generate signed URL for:', drawing.file_url)
+
+      try {
+        const { data, error } = await supabase.storage
+          .from('drawings')
+          .createSignedUrl(drawing.file_url, 3600)
+
+        if (error) {
+          console.error('❌ Signed URL generation failed:', error)
+          console.error('   File path:', drawing.file_url)
+          console.error('   Bucket:', 'drawings')
+          console.error('   Error details:', error.message || error)
+          setPreviewError(`Storage access error: ${error.message || 'Permission denied'}. Check Storage RLS policies.`)
+        } else if (data) {
+          console.log('✅ Signed URL generated successfully')
+          console.log('   URL:', data.signedUrl)
+          setFileUrl(data.signedUrl)
+          setPreviewError(null)
+        }
+      } catch (error) {
+        console.error('❌ Exception during signed URL generation:', error)
+        setPreviewError(`Failed to access file: ${error.message}`)
+      } finally {
+        setLoadingPreview(false)
+      }
+    }
+
+    fetchFileUrl()
+  }, [drawing.file_url])
+
+  useEffect(() => {
+    const fetchCustomersAndProjects = async () => {
+      if (!isEditing) return
+
+      try {
+        // Fetch customers
+        const { data: customersData } = await supabase
+          .from('customers')
+          .select('id, name')
+          .order('name')
+
+        if (customersData) setCustomers(customersData)
+
+        // Fetch projects for selected customer
+        if (editedData.customer_id) {
+          const { data: projectsData } = await supabase
+            .from('projects')
+            .select('id, name, project_number')
+            .eq('customer_id', editedData.customer_id)
+            .order('name')
+
+          if (projectsData) setProjects(projectsData)
+        } else {
+          setProjects([])
+        }
+      } catch (error) {
+        console.error('Error fetching options:', error)
+      }
+    }
+
+    fetchCustomersAndProjects()
+  }, [isEditing, editedData.customer_id])
+
+  const handleSaveEdit = async () => {
+    try {
+      const { error } = await supabase
+        .from('drawings')
+        .update(editedData)
+        .eq('id', drawing.id)
+
+      if (error) throw error
+
+      alert('Drawing updated successfully!')
+      setIsEditing(false)
+      window.location.reload() // Refresh to show updated data
+    } catch (error) {
+      console.error('Error updating drawing:', error)
+      alert('Error updating drawing: ' + error.message)
+    }
+  }
+
+  const createCustomer = async () => {
+    if (!newCustomerName.trim()) {
+      alert('Customer name is required')
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .insert([{ name: newCustomerName }])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      if (data) {
+        setCustomers([...customers, data])
+        setEditedData({ ...editedData, customer_id: data.id })
+        setShowNewCustomer(false)
+        setNewCustomerName('')
+      }
+    } catch (error) {
+      console.error('Error creating customer:', error)
+      alert('Error creating customer: ' + error.message)
+    }
+  }
+
+  const createProject = async () => {
+    if (!newProjectName.trim()) {
+      alert('Project name is required')
+      return
+    }
+
+    if (!editedData.customer_id) {
+      alert('Please select a customer first')
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .insert([{
+          name: newProjectName,
+          project_number: newProjectNumber || null,
+          customer_id: editedData.customer_id
+        }])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      if (data) {
+        setProjects([...projects, data])
+        setEditedData({ ...editedData, project_id: data.id })
+        setShowNewProject(false)
+        setNewProjectName('')
+        setNewProjectNumber('')
+      }
+    } catch (error) {
+      console.error('Error creating project:', error)
+      alert('Error creating project: ' + error.message)
+    }
+  }
+
+  // Zoom and pan handlers
+  const handleZoomIn = () => {
+    setZoom(prev => Math.min(prev + 0.25, 5))
+  }
+
+  const handleZoomOut = () => {
+    setZoom(prev => Math.max(prev - 0.25, 0.5))
+  }
+
+  const handleResetZoom = () => {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+  }
+
+  const handleWheel = (e) => {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? -0.1 : 0.1
+    setZoom(prev => Math.max(0.5, Math.min(5, prev + delta)))
+  }
+
+  const handleMouseDown = (e) => {
+    if (zoom > 1) {
+      setIsDragging(true)
+      setDragStart({
+        x: e.clientX - pan.x,
+        y: e.clientY - pan.y
+      })
+    }
+  }
+
+  const handleMouseMove = (e) => {
+    if (isDragging) {
+      setPan({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      })
+    }
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+  }
+
+  const renderPreview = () => {
+    if (loadingPreview) {
+      return (
+        <div className="py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="text-slate-400 mt-4">Loading preview...</p>
+        </div>
+      )
+    }
+
+    // Show error if preview failed to load
+    if (previewError) {
+      return (
+        <div className="py-12 space-y-4">
+          <svg className="w-16 h-16 mx-auto text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <p className="text-red-400 font-medium mt-4">Failed to load preview</p>
+          <p className="text-slate-400 text-sm mt-2 max-w-md mx-auto">{previewError}</p>
+          <div className="mt-4 text-xs text-slate-500 bg-slate-950 rounded p-3 max-w-md mx-auto text-left font-mono">
+            <div><strong>File:</strong> {drawing.file_url || 'N/A'}</div>
+            <div><strong>Type:</strong> {drawing.file_type || 'N/A'}</div>
+            <div><strong>Size:</strong> {formatFileSize(drawing.file_size)}</div>
+          </div>
+
+          {/* Graceful fallback - allow viewing PDF in new tab or iframe */}
+          {fileUrl && drawing.file_type?.toLowerCase() === 'pdf' && (
+            <div className="mt-6 space-y-3">
+              <p className="text-slate-300 text-sm">Try viewing the PDF using an alternative method:</p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => window.open(fileUrl, '_blank')}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Open in New Tab
+                </button>
+                <button
+                  onClick={onDownload}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Download PDF
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    const fileType = drawing.file_type?.toLowerCase()
+
+    // PDF Preview
+    if (fileType === 'pdf' && fileUrl) {
+      return (
+        <div
+          className="flex flex-col items-center overflow-hidden"
+          style={{
+            transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+            transformOrigin: 'center',
+            transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+            cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+          }}
+        >
+          <Document
+            file={fileUrl}
+            onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+            onLoadError={(error) => {
+              console.error('PDF load error:', error)
+              setPreviewError(error?.message || 'Failed to load PDF file')
+            }}
+            loading={
+              <div className="py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+              </div>
+            }
+          >
+            <Page pageNumber={1} width={600} />
+          </Document>
+          {numPages && numPages > 1 && (
+            <p className="text-slate-400 text-sm mt-2">Page 1 of {numPages}</p>
+          )}
+        </div>
+      )
+    }
+
+    // Image Preview - support all common image formats
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'tiff', 'tif'].includes(fileType) && fileUrl) {
+      return (
+        <img
+          src={fileUrl}
+          alt={drawing.part_number}
+          className="max-h-96 mx-auto rounded"
+          style={{
+            transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+            transformOrigin: 'center',
+            transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+            cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+          }}
+          onError={(e) => {
+            console.error('Failed to load image:', drawing.file_url)
+            setPreviewError(`Failed to load image: ${drawing.file_type}`)
+          }}
+        />
+      )
+    }
+
+    // No preview available
+    return (
+      <div className="py-12">
+        <svg className="w-24 h-24 mx-auto text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <p className="text-slate-400 mt-4">Preview not available</p>
+        <p className="text-slate-500 text-sm mt-2">{fileType?.toUpperCase()} files require specialized viewers</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-slate-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-slate-700">
+          <div>
+            <h2 className="text-2xl font-bold text-white">{drawing.part_number}</h2>
+            <p className="text-slate-400 mt-1">{drawing.title || 'No title'}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          {/* File Preview */}
+          <div className="relative">
+            {/* Zoom Controls */}
+            <div className="absolute top-4 right-4 z-10 flex gap-2 bg-slate-800/90 rounded-lg p-2 border border-slate-700">
+              <button
+                onClick={handleZoomOut}
+                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
+                title="Zoom Out"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
+                </svg>
+              </button>
+              <button
+                onClick={handleResetZoom}
+                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors text-sm"
+                title="Reset Zoom"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <button
+                onClick={handleZoomIn}
+                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
+                title="Zoom In"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Preview Container */}
+            <div
+              className="bg-slate-900 rounded-lg p-8 text-center overflow-hidden"
+              onWheel={handleWheel}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+            >
+              {renderPreview()}
+            </div>
+          </div>
+
+          {/* Details Grid / Edit Form */}
+          {!isEditing ? (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <DetailItem label="Part Number" value={drawing.part_number} />
+                <DetailItem label="Revision" value={drawing.revision || 'A'} />
+                <DetailItem label="Customer" value={drawing.customer_name || 'N/A'} />
+                <DetailItem label="Project" value={drawing.project_name || 'N/A'} />
+                <DetailItem label="File Type" value={drawing.file_type?.toUpperCase()} />
+                <DetailItem label="File Size" value={formatFileSize(drawing.file_size)} />
+                <DetailItem label="Version" value={`v${drawing.version_number}`} />
+                <DetailItem label="Status" value={drawing.status} />
+                <DetailItem label="Uploaded" value={formatDate(drawing.created_at)} />
+              </div>
+
+              {/* Description */}
+              {drawing.description && (
+                <div>
+                  <h3 className="text-sm font-medium text-slate-400 mb-2">Description</h3>
+                  <p className="text-white bg-slate-900 rounded-lg p-3">{drawing.description}</p>
+                </div>
+              )}
+
+              {/* AI Analysis */}
+              {drawing.ai_description && (
+                <div>
+                  <h3 className="text-sm font-medium text-slate-400 mb-2">AI Analysis</h3>
+                  <p className="text-white bg-slate-900 rounded-lg p-3">{drawing.ai_description}</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                {/* Part Number */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Part Number</label>
+                  <input
+                    type="text"
+                    value={editedData.part_number}
+                    onChange={(e) => setEditedData({...editedData, part_number: e.target.value})}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Revision */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Revision</label>
+                  <input
+                    type="text"
+                    value={editedData.revision}
+                    onChange={(e) => setEditedData({...editedData, revision: e.target.value})}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Customer */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Customer</label>
+                  {showNewCustomer ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newCustomerName}
+                        onChange={(e) => setNewCustomerName(e.target.value)}
+                        className="flex-1 px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Customer name"
+                      />
+                      <button
+                        onClick={createCustomer}
+                        className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm"
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => setShowNewCustomer(false)}
+                        className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <select
+                        value={editedData.customer_id}
+                        onChange={(e) => setEditedData({...editedData, customer_id: e.target.value, project_id: ''})}
+                        className="flex-1 px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select Customer</option>
+                        {customers.map(customer => (
+                          <option key={customer.id} value={customer.id}>{customer.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => setShowNewCustomer(true)}
+                        className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm"
+                        title="Add new customer"
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Project */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Project</label>
+                  {showNewProject ? (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newProjectName}
+                          onChange={(e) => setNewProjectName(e.target.value)}
+                          className="flex-1 px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Project name *"
+                        />
+                        <input
+                          type="text"
+                          value={newProjectNumber}
+                          onChange={(e) => setNewProjectNumber(e.target.value)}
+                          className="w-28 px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Number"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={createProject}
+                          className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm"
+                        >
+                          Add Project
+                        </button>
+                        <button
+                          onClick={() => setShowNewProject(false)}
+                          className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <select
+                        value={editedData.project_id}
+                        onChange={(e) => setEditedData({...editedData, project_id: e.target.value})}
+                        className="flex-1 px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={!editedData.customer_id}
+                      >
+                        <option value="">Select Project</option>
+                        {projects.map(project => (
+                          <option key={project.id} value={project.id}>
+                            {project.project_number} - {project.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => setShowNewProject(true)}
+                        className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm"
+                        title="Add new project"
+                        disabled={!editedData.customer_id}
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={editedData.title}
+                  onChange={(e) => setEditedData({...editedData, title: e.target.value})}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Description</label>
+                <textarea
+                  value={editedData.description}
+                  onChange={(e) => setEditedData({...editedData, description: e.target.value})}
+                  rows={3}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            {!isEditing ? (
+              <>
+                <button
+                  onClick={onDownload}
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Download
+                </button>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Edit
+                </button>
+                <button
+                  onClick={onDelete}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete
+                </button>
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
+                >
+                  Close
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleSaveEdit}
+                  className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  Save Changes
+                </button>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DetailItem({ label, value }) {
+  return (
+    <div>
+      <p className="text-sm text-slate-400">{label}</p>
+      <p className="text-white font-medium mt-1">{value || 'N/A'}</p>
+    </div>
+  )
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return 'N/A'
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`
+}
+
+function formatDate(dateString) {
+  if (!dateString) return 'N/A'
+  return new Date(dateString).toLocaleString()
+}

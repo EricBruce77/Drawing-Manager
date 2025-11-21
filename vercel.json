@@ -1,0 +1,14 @@
+{
+  "functions": {
+    "api/generate-thumbnail.js": {
+      "memory": 2048,
+      "maxDuration": 60
+    }
+  },
+  "build": {
+    "env": {
+      "ENABLE_EXPERIMENTAL_COREPACK": "1"
+    }
+  },
+  "outputDirectory": "dist"
+}

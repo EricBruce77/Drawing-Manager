@@ -1,0 +1,8 @@
+# Ignore React app files - only deploy API functions
+src/
+public/
+node_modules/
+dist/
+*.config.js
+*.config.ts
+index.html
