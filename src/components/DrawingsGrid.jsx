@@ -18,6 +18,8 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
   const [drawings, setDrawings] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDrawing, setSelectedDrawing] = useState(null)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState(new Set())
 
   useEffect(() => {
     fetchDrawings()
@@ -234,6 +236,93 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
     }
   }
 
+  // Toggle select mode
+  const toggleSelectMode = () => {
+    setSelectMode(!selectMode)
+    setSelectedIds(new Set()) // Clear selections when toggling mode
+  }
+
+  // Toggle selection of a drawing
+  const toggleDrawingSelection = (drawingId) => {
+    const newSelected = new Set(selectedIds)
+    if (newSelected.has(drawingId)) {
+      newSelected.delete(drawingId)
+    } else {
+      newSelected.add(drawingId)
+    }
+    setSelectedIds(newSelected)
+  }
+
+  // Select all drawings in current view
+  const selectAll = () => {
+    setSelectedIds(new Set(drawings.map(d => d.id)))
+  }
+
+  // Deselect all
+  const deselectAll = () => {
+    setSelectedIds(new Set())
+  }
+
+  // Bulk delete selected drawings
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) {
+      alert('No drawings selected')
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedIds.size} selected drawing(s)?\n\nThis action cannot be undone.`
+    )
+
+    if (!confirmed) return
+
+    const selectedDrawings = drawings.filter(d => selectedIds.has(d.id))
+    const results = { success: [], failed: [] }
+
+    for (const drawing of selectedDrawings) {
+      try {
+        // Delete file from storage
+        if (drawing.file_url) {
+          const { error: storageError } = await supabase.storage
+            .from('drawings')
+            .remove([drawing.file_url])
+
+          if (storageError) {
+            console.warn('Storage deletion warning for', drawing.part_number, ':', storageError)
+          }
+        }
+
+        // Delete database record
+        const { error: dbError } = await supabase
+          .from('drawings')
+          .delete()
+          .eq('id', drawing.id)
+
+        if (dbError) throw dbError
+
+        results.success.push(drawing.part_number)
+      } catch (error) {
+        console.error('Error deleting drawing:', drawing.part_number, error)
+        results.failed.push({ partNumber: drawing.part_number, error: error.message })
+      }
+    }
+
+    // Show results
+    let message = `Successfully deleted ${results.success.length} drawing(s)`
+    if (results.failed.length > 0) {
+      message += `\n\nFailed to delete ${results.failed.length} drawing(s):`
+      results.failed.forEach(f => {
+        message += `\n- ${f.partNumber}: ${f.error}`
+      })
+    }
+    alert(message)
+
+    // Clear selections and refresh
+    setSelectedIds(new Set())
+    setSelectMode(false)
+    fetchDrawings()
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -260,16 +349,74 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
 
   return (
     <>
+      {/* Toolbar for bulk actions */}
+      <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
+        <button
+          onClick={toggleSelectMode}
+          className={`px-4 py-2 min-h-[44px] rounded-lg font-medium transition-colors text-sm sm:text-base ${
+            selectMode
+              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+              : 'bg-slate-700 hover:bg-slate-600 text-white'
+          }`}
+        >
+          {selectMode ? 'Exit Select Mode' : 'Select Mode'}
+        </button>
+
+        {selectMode && (
+          <>
+            <button
+              onClick={selectAll}
+              className="px-4 py-2 min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors text-sm sm:text-base"
+            >
+              Select All ({drawings.length})
+            </button>
+
+            {selectedIds.size > 0 && (
+              <>
+                <button
+                  onClick={deselectAll}
+                  className="px-4 py-2 min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors text-sm sm:text-base"
+                >
+                  Deselect All
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  className="px-4 py-2 min-h-[44px] bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors text-sm sm:text-base flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete Selected ({selectedIds.size})
+                </button>
+              </>
+            )}
+          </>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {drawings.map((drawing) => (
-          <DrawingCard
-            key={drawing.id}
-            drawing={drawing}
-            onView={() => setSelectedDrawing(drawing)}
-            onDownload={() => handleDownload(drawing)}
-            showCompletionStatus={true}
-            onStatusChange={fetchDrawings}
-          />
+          <div key={drawing.id} className="relative">
+            {selectMode && (
+              <div className="absolute top-2 left-2 z-10">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(drawing.id)}
+                  onChange={() => toggleDrawingSelection(drawing.id)}
+                  className="w-6 h-6 rounded border-2 border-slate-600 bg-slate-800 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  aria-label={`Select ${drawing.part_number}`}
+                />
+              </div>
+            )}
+            <DrawingCard
+              key={drawing.id}
+              drawing={drawing}
+              onView={() => !selectMode && setSelectedDrawing(drawing)}
+              onDownload={() => handleDownload(drawing)}
+              showCompletionStatus={!selectMode}
+              onStatusChange={fetchDrawings}
+            />
+          </div>
         ))}
       </div>
 
