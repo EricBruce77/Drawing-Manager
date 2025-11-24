@@ -586,6 +586,12 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
 
     // PDF Preview
     if (fileType === 'pdf' && fileUrl) {
+      // Calculate responsive width: smaller on mobile, larger on desktop
+      const isMobile = window.innerWidth < 1024
+      const pdfWidth = isMobile
+        ? Math.min(window.innerWidth * 0.85, 600)
+        : Math.min(window.innerWidth * 0.6, 1200)
+
       return (
         <div
           className="flex flex-col items-center overflow-hidden w-full max-w-full"
@@ -611,7 +617,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
           >
             <Page
               pageNumber={1}
-              width={Math.min(window.innerWidth * 0.85, 1000)}
+              width={pdfWidth}
               renderTextLayer={false}
               renderAnnotationLayer={false}
             />
@@ -629,7 +635,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
         <img
           src={fileUrl}
           alt={drawing.part_number}
-          className="max-h-96 mx-auto rounded"
+          className="max-h-[400px] lg:max-h-[600px] max-w-full mx-auto rounded object-contain"
           style={{
             transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
             transformOrigin: 'center',
@@ -681,40 +687,50 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
           {/* File Preview */}
           <div className="relative">
             {/* Zoom Controls */}
-            <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-10 flex gap-1 sm:gap-2 bg-slate-800/90 rounded-lg p-1 sm:p-2 border border-slate-700">
-              <button
-                onClick={handleZoomOut}
-                className="px-2 sm:px-3 py-2 min-h-[44px] min-w-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors flex items-center justify-center"
-                title="Zoom Out"
-                aria-label="Zoom Out"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
-                </svg>
-              </button>
+            <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-10 flex flex-col gap-1 sm:gap-2">
+              <div className="flex gap-1 sm:gap-2 bg-slate-800/90 rounded-lg p-1 sm:p-2 border border-slate-700">
+                <button
+                  onClick={handleZoomOut}
+                  className="px-2 sm:px-3 py-2 min-h-[44px] min-w-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors flex items-center justify-center"
+                  title="Zoom Out"
+                  aria-label="Zoom Out"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={handleResetZoom}
+                  className="px-2 sm:px-3 py-2 min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors text-sm font-medium whitespace-nowrap"
+                  title="Reset Zoom"
+                  aria-label="Reset Zoom"
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button
+                  onClick={handleZoomIn}
+                  className="px-2 sm:px-3 py-2 min-h-[44px] min-w-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors flex items-center justify-center"
+                  title="Zoom In"
+                  aria-label="Zoom In"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                  </svg>
+                </button>
+              </div>
               <button
                 onClick={handleResetZoom}
-                className="px-2 sm:px-3 py-2 min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors text-sm font-medium"
-                title="Reset Zoom"
-                aria-label="Reset Zoom"
+                className="px-3 py-2 min-h-[44px] bg-slate-800/90 hover:bg-slate-700 text-white rounded-lg transition-colors text-xs sm:text-sm font-medium border border-slate-700 whitespace-nowrap"
+                title="Fit to view"
+                aria-label="Fit to view"
               >
-                {Math.round(zoom * 100)}%
-              </button>
-              <button
-                onClick={handleZoomIn}
-                className="px-2 sm:px-3 py-2 min-h-[44px] min-w-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors flex items-center justify-center"
-                title="Zoom In"
-                aria-label="Zoom In"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-                </svg>
+                Fit to View
               </button>
             </div>
 
             {/* Preview Container */}
             <div
-              className="bg-slate-900 rounded-lg p-4 sm:p-8 text-center overflow-hidden min-h-[300px] max-h-[60vh] flex items-center justify-center max-w-full"
+              className="bg-slate-900 rounded-lg p-4 sm:p-8 text-center overflow-auto min-h-[300px] max-h-[50vh] lg:max-h-[70vh] flex items-center justify-center max-w-full"
               onWheel={handleWheel}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}

@@ -10,7 +10,15 @@ export default function Projects() {
   const [loading, setLoading] = useState(true)
   const [showAddProject, setShowAddProject] = useState(false)
   const [editingProject, setEditingProject] = useState(null)
-  const [expandedProjects, setExpandedProjects] = useState(new Set())
+  const [expandedProjects, setExpandedProjects] = useState(() => {
+    // Load expanded projects from localStorage on mount
+    try {
+      const saved = localStorage.getItem('expandedProjects')
+      return saved ? new Set(JSON.parse(saved)) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
   const [projectDrawings, setProjectDrawings] = useState({})
 
   // Form state
@@ -33,6 +41,15 @@ export default function Projects() {
     fetchProjects()
     fetchCustomers()
   }, [])
+
+  // Save expanded projects to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('expandedProjects', JSON.stringify(Array.from(expandedProjects)))
+    } catch (error) {
+      console.error('Error saving expanded projects:', error)
+    }
+  }, [expandedProjects])
 
   const fetchProjects = async () => {
     try {
@@ -65,6 +82,40 @@ export default function Projects() {
           })
         )
         setProjectDrawings(drawingCounts)
+
+        // Fetch full drawing data for any expanded projects
+        const expandedIds = Array.from(expandedProjects)
+        if (expandedIds.length > 0) {
+          for (const projectId of expandedIds) {
+            const project = data.find(p => p.id === projectId)
+            if (project && !drawingCounts[projectId]?.length) {
+              // Only fetch if we don't already have data
+              const { data: drawings, error: drawingsError } = await supabase
+                .from('drawings')
+                .select('*')
+                .eq('project_name', project.name)
+                .eq('status', 'active')
+                .order('created_at', { ascending: false })
+
+              if (!drawingsError && drawings) {
+                drawingCounts[projectId] = drawings
+              }
+            } else if (project && drawingCounts[projectId]?.length > 0) {
+              // Fetch full data for expanded projects that have drawings
+              const { data: drawings, error: drawingsError } = await supabase
+                .from('drawings')
+                .select('*')
+                .eq('project_name', project.name)
+                .eq('status', 'active')
+                .order('created_at', { ascending: false })
+
+              if (!drawingsError && drawings) {
+                drawingCounts[projectId] = drawings
+              }
+            }
+          }
+          setProjectDrawings(drawingCounts)
+        }
       }
 
       setProjects(data || [])
