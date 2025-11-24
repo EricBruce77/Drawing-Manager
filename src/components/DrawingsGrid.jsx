@@ -588,7 +588,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
     if (fileType === 'pdf' && fileUrl) {
       return (
         <div
-          className="flex flex-col items-center overflow-hidden"
+          className="flex flex-col items-center overflow-hidden w-full"
           style={{
             transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
             transformOrigin: 'center',
@@ -609,7 +609,12 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
               </div>
             }
           >
-            <Page pageNumber={1} width={600} />
+            <Page
+              pageNumber={1}
+              width={Math.min(window.innerWidth - 100, 1200)}
+              renderTextLayer={false}
+              renderAnnotationLayer={false}
+            />
           </Document>
           {numPages && numPages > 1 && (
             <p className="text-slate-400 text-sm mt-2">Page 1 of {numPages}</p>
