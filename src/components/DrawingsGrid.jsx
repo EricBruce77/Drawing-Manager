@@ -362,7 +362,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
       if (!isEditing) return
 
       try {
-        // Fetch customers
+        // Fetch all customers
         const { data: customersData } = await supabase
           .from('customers')
           .select('id, name')
@@ -370,31 +370,36 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
 
         if (customersData) setCustomers(customersData)
 
-        // Fetch projects for selected customer
-        if (editedData.customer_id) {
-          const { data: projectsData } = await supabase
-            .from('projects')
-            .select('id, name, project_number')
-            .eq('customer_id', editedData.customer_id)
-            .order('name')
+        // Fetch all projects (not filtered by customer)
+        const { data: projectsData } = await supabase
+          .from('projects')
+          .select('id, name, project_number')
+          .order('name')
 
-          if (projectsData) setProjects(projectsData)
-        } else {
-          setProjects([])
-        }
+        if (projectsData) setProjects(projectsData)
       } catch (error) {
         console.error('Error fetching options:', error)
       }
     }
 
     fetchCustomersAndProjects()
-  }, [isEditing, editedData.customer_id])
+  }, [isEditing])
 
   const handleSaveEdit = async () => {
     try {
+      // Only send fields that exist in the database schema
+      const updateData = {
+        part_number: editedData.part_number,
+        revision: editedData.revision,
+        title: editedData.title,
+        description: editedData.description,
+        customer_name: editedData.customer_name || null,
+        project_name: editedData.project_name || null
+      }
+
       const { error } = await supabase
         .from('drawings')
-        .update(editedData)
+        .update(updateData)
         .eq('id', drawing.id)
 
       if (error) throw error
@@ -425,7 +430,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
 
       if (data) {
         setCustomers([...customers, data])
-        setEditedData({ ...editedData, customer_id: data.id })
+        setEditedData({ ...editedData, customer_name: data.name })
         setShowNewCustomer(false)
         setNewCustomerName('')
       }
@@ -441,18 +446,25 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
       return
     }
 
-    if (!editedData.customer_id) {
+    if (!editedData.customer_name) {
       alert('Please select a customer first')
       return
     }
 
     try {
+      // Find the customer ID from the customer name
+      const customer = customers.find(c => c.name === editedData.customer_name)
+      if (!customer) {
+        alert('Selected customer not found')
+        return
+      }
+
       const { data, error } = await supabase
         .from('projects')
         .insert([{
           name: newProjectName,
           project_number: newProjectNumber || null,
-          customer_id: editedData.customer_id
+          customer_id: customer.id
         }])
         .select()
         .single()
@@ -461,7 +473,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
 
       if (data) {
         setProjects([...projects, data])
-        setEditedData({ ...editedData, project_id: data.id })
+        setEditedData({ ...editedData, project_name: data.name })
         setShowNewProject(false)
         setNewProjectName('')
         setNewProjectNumber('')
@@ -792,13 +804,13 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
                   ) : (
                     <div className="flex gap-2">
                       <select
-                        value={editedData.customer_id}
-                        onChange={(e) => setEditedData({...editedData, customer_id: e.target.value, project_id: ''})}
+                        value={editedData.customer_name}
+                        onChange={(e) => setEditedData({...editedData, customer_name: e.target.value, project_name: ''})}
                         className="flex-1 px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="">Select Customer</option>
                         {customers.map(customer => (
-                          <option key={customer.id} value={customer.id}>{customer.name}</option>
+                          <option key={customer.id} value={customer.name}>{customer.name}</option>
                         ))}
                       </select>
                       <button
@@ -851,14 +863,14 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
                   ) : (
                     <div className="flex gap-2">
                       <select
-                        value={editedData.project_id}
-                        onChange={(e) => setEditedData({...editedData, project_id: e.target.value})}
+                        value={editedData.project_name}
+                        onChange={(e) => setEditedData({...editedData, project_name: e.target.value})}
                         className="flex-1 px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        disabled={!editedData.customer_id}
+                        disabled={!editedData.customer_name}
                       >
                         <option value="">Select Project</option>
                         {projects.map(project => (
-                          <option key={project.id} value={project.id}>
+                          <option key={project.id} value={project.name}>
                             {project.project_number} - {project.name}
                           </option>
                         ))}
@@ -867,7 +879,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
                         onClick={() => setShowNewProject(true)}
                         className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm"
                         title="Add new project"
-                        disabled={!editedData.customer_id}
+                        disabled={!editedData.customer_name}
                       >
                         +
                       </button>
