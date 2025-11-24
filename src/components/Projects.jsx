@@ -10,6 +10,8 @@ export default function Projects() {
   const [loading, setLoading] = useState(true)
   const [showAddProject, setShowAddProject] = useState(false)
   const [editingProject, setEditingProject] = useState(null)
+  const [expandedProjects, setExpandedProjects] = useState(new Set())
+  const [projectDrawings, setProjectDrawings] = useState({})
 
   // Form state
   const [projectForm, setProjectForm] = useState({
@@ -155,6 +157,40 @@ export default function Projects() {
     })
   }
 
+  const toggleProjectExpanded = async (projectId, projectName) => {
+    const newExpanded = new Set(expandedProjects)
+    if (newExpanded.has(projectId)) {
+      newExpanded.delete(projectId)
+    } else {
+      newExpanded.add(projectId)
+      // Fetch drawings for this project if not already loaded
+      if (!projectDrawings[projectId]) {
+        await fetchProjectDrawings(projectId, projectName)
+      }
+    }
+    setExpandedProjects(newExpanded)
+  }
+
+  const fetchProjectDrawings = async (projectId, projectName) => {
+    try {
+      const { data, error } = await supabase
+        .from('drawings')
+        .select('*')
+        .eq('project_name', projectName)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      setProjectDrawings(prev => ({
+        ...prev,
+        [projectId]: data || []
+      }))
+    } catch (error) {
+      console.error('Error fetching project drawings:', error)
+    }
+  }
+
   const canEdit = profile?.role === 'admin' || profile?.role === 'engineer' || profile?.role === 'viewer'
 
   if (loading) {
@@ -198,52 +234,130 @@ export default function Projects() {
           </div>
         ) : (
           projects.map((project) => (
-            <div key={project.id} className="bg-slate-800 rounded-lg border border-slate-700 p-4 hover:border-blue-500 transition-colors">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-white font-semibold truncate">{project.name}</h3>
-                  {project.project_number && (
-                    <span className="inline-block mt-1 px-2 py-0.5 bg-blue-500/10 text-blue-400 text-xs rounded">
-                      #{project.project_number}
-                    </span>
-                  )}
+            <div key={project.id} className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+              <div className="p-4">
+                <div className="flex items-start gap-3 mb-3">
+                  <button
+                    onClick={() => toggleProjectExpanded(project.id, project.name)}
+                    className="text-slate-400 hover:text-white transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
+                    aria-label={expandedProjects.has(project.id) ? "Collapse" : "Expand"}
+                  >
+                    <svg
+                      className={`w-5 h-5 transition-transform ${expandedProjects.has(project.id) ? 'rotate-90' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-white font-semibold truncate">{project.name}</h3>
+                    {project.project_number && (
+                      <span className="inline-block mt-1 px-2 py-0.5 bg-blue-500/10 text-blue-400 text-xs rounded">
+                        #{project.project_number}
+                      </span>
+                    )}
+                  </div>
                 </div>
+
+                {/* Customer */}
+                <div className="mb-3">
+                  <span className="text-slate-400 text-sm">Customer:</span>
+                  <p className="text-white text-sm font-medium">{project.customer?.name || 'N/A'}</p>
+                </div>
+
+                {/* Description */}
+                {project.description && (
+                  <p className="text-slate-400 text-sm mb-3 line-clamp-2">{project.description}</p>
+                )}
+
+                {/* Drawing Count */}
+                <div className="flex items-center gap-2 text-slate-400 text-sm mb-3">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  {projectDrawings[project.id]?.length || 0} drawings
+                </div>
+
+                {/* Actions */}
+                {canEdit && (
+                  <div className="flex gap-2 pt-3 border-t border-slate-700">
+                    <button
+                      onClick={() => {
+                        setEditingProject(project)
+                        setProjectForm({
+                          name: project.name,
+                          project_number: project.project_number || '',
+                          description: project.description || '',
+                          customer_id: project.customer_id
+                        })
+                      }}
+                      className="flex-1 px-3 py-1.5 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteProject(project.id, project.name)}
+                      className="flex-1 px-3 py-1.5 min-h-[44px] bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* Customer */}
-              <div className="mb-3">
-                <span className="text-slate-400 text-sm">Customer:</span>
-                <p className="text-white text-sm font-medium">{project.customer?.name || 'N/A'}</p>
-              </div>
-
-              {/* Description */}
-              {project.description && (
-                <p className="text-slate-400 text-sm mb-3 line-clamp-2">{project.description}</p>
-              )}
-
-              {/* Actions */}
-              {canEdit && (
-                <div className="flex gap-2 pt-3 border-t border-slate-700">
-                  <button
-                    onClick={() => {
-                      setEditingProject(project)
-                      setProjectForm({
-                        name: project.name,
-                        project_number: project.project_number || '',
-                        description: project.description || '',
-                        customer_id: project.customer_id
-                      })
-                    }}
-                    className="flex-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteProject(project.id, project.name)}
-                    className="flex-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
-                  >
-                    Delete
-                  </button>
+              {/* Drawings List */}
+              {expandedProjects.has(project.id) && (
+                <div className="border-t border-slate-700 bg-slate-900 p-4">
+                  {projectDrawings[project.id]?.length > 0 ? (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-slate-300 mb-3">Project Drawings</h4>
+                      {projectDrawings[project.id].map((drawing) => (
+                        <div
+                          key={drawing.id}
+                          className="bg-slate-800 rounded p-3 hover:bg-slate-750 transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-white font-medium truncate">{drawing.part_number}</span>
+                                <span className="px-2 py-0.5 bg-slate-700 text-slate-300 text-xs rounded">
+                                  Rev {drawing.revision || 'A'}
+                                </span>
+                              </div>
+                              {drawing.title && (
+                                <p className="text-slate-400 text-sm mt-1 truncate">{drawing.title}</p>
+                              )}
+                              <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+                                <span>{drawing.file_type?.toUpperCase()}</span>
+                                <span>v{drawing.version_number}</span>
+                                <span>{new Date(drawing.created_at).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                            <a
+                              href={`#view-${drawing.id}`}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                // You can add a handler here to open the drawing detail modal
+                                window.location.href = '/#all-drawings'
+                              }}
+                              className="px-3 py-2 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors whitespace-nowrap"
+                            >
+                              View
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <svg className="w-12 h-12 mx-auto text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <p className="text-slate-400 text-sm mt-2">No drawings in this project yet</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
