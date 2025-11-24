@@ -441,7 +441,7 @@ export default function Projects() {
       {/* Add/Edit Project Modal */}
       {(showAddProject || editingProject) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-lg max-w-md w-full p-6">
+          <div className="bg-slate-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto p-6">
             <h2 className="text-xl font-bold text-white mb-4">
               {editingProject ? 'Edit Project' : 'Add New Project'}
             </h2>

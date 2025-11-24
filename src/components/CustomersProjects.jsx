@@ -379,7 +379,7 @@ export default function CustomersProjects() {
       {/* Add/Edit Customer Modal */}
       {(showAddCustomer || editingCustomer) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-lg max-w-md w-full p-6">
+          <div className="bg-slate-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto p-6">
             <h2 className="text-xl font-bold text-white mb-4">
               {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
             </h2>
@@ -448,7 +448,7 @@ export default function CustomersProjects() {
       {/* Add/Edit Project Modal */}
       {(showAddProject || editingProject) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-lg max-w-md w-full p-6">
+          <div className="bg-slate-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto p-6">
             <h2 className="text-xl font-bold text-white mb-4">
               {editingProject ? 'Edit Project' : `Add Project to ${selectedCustomer?.name}`}
             </h2>
