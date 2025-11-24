@@ -1,8 +1,5 @@
-# Ignore React app files - only deploy API functions
-src/
-public/
+# Ignore source files and dev dependencies (Vercel will build from source)
 node_modules/
-dist/
-*.config.js
-*.config.ts
-index.html
+.env.local
+.DS_Store
+*.log

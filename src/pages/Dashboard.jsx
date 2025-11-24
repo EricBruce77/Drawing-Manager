@@ -24,7 +24,7 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="flex h-screen bg-slate-900">
+    <div className="flex h-screen bg-slate-900" style={{ height: '100dvh' }}>
       {/* Sidebar - desktop */}
       <div className="hidden lg:flex">
         <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -51,11 +51,11 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-slate-800 border-b border-slate-700 px-4 sm:px-6 py-4">
-          <div className="flex items-start sm:items-center justify-between gap-4 flex-col sm:flex-row">
-            <div className="flex items-start sm:items-center gap-3 w-full">
+        <header className="bg-slate-800 border-b border-slate-700 px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-start sm:items-center justify-between gap-3 sm:gap-4 flex-col sm:flex-row">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
               <button
-                className="lg:hidden p-2 rounded-md bg-slate-700 text-white"
+                className="lg:hidden p-2 rounded-md bg-slate-700 text-white min-h-[44px] min-w-[44px] flex items-center justify-center"
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open menu"
               >
@@ -63,8 +63,8 @@ export default function Dashboard() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-bold text-white truncate">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-white truncate">
                   {activeTab === 'all-drawings' && 'All Drawings'}
                   {activeTab === 'upload' && 'Upload Drawings'}
                   {activeTab === 'customers' && 'Customers & Projects'}
@@ -73,23 +73,24 @@ export default function Dashboard() {
                   {activeTab === 'user-access' && 'User Access Control'}
                   {activeTab === 'settings' && 'Settings'}
                 </h1>
-                <p className="text-slate-400 text-sm mt-1 truncate">
+                <p className="text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1 truncate">
                   Welcome back, {profile?.full_name || 'User'} ({profile?.role})
                 </p>
               </div>
             </div>
 
             {activeTab === 'all-drawings' && (
-              <div className="flex items-center gap-2 sm:gap-3 self-start sm:self-center">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 {/* View Toggle */}
-                <div className="flex bg-slate-700 rounded-lg p-1">
+                <div className="flex bg-slate-700 rounded-lg p-1 flex-shrink-0">
                   <button
                     onClick={() => setViewMode('grid')}
-                    className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                    className={`px-3 py-2 min-h-[44px] rounded text-sm transition-colors ${
                       viewMode === 'grid'
                         ? 'bg-slate-800 text-white'
                         : 'text-slate-300 hover:text-white'
                     }`}
+                    aria-label="Grid view"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
@@ -97,11 +98,12 @@ export default function Dashboard() {
                   </button>
                   <button
                     onClick={() => setViewMode('folder')}
-                    className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                    className={`px-3 py-2 min-h-[44px] rounded text-sm transition-colors ${
                       viewMode === 'folder'
                         ? 'bg-slate-800 text-white'
                         : 'text-slate-300 hover:text-white'
                     }`}
+                    aria-label="Folder view"
                   >
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -111,12 +113,13 @@ export default function Dashboard() {
 
                 <button
                   onClick={() => setShowUploadModal(true)}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                  className="flex-1 sm:flex-initial px-4 py-2.5 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white text-sm sm:text-base rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                  Upload Drawing
+                  <span className="hidden sm:inline">Upload Drawing</span>
+                  <span className="sm:hidden">Upload</span>
                 </button>
               </div>
             )}

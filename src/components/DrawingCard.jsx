@@ -5,6 +5,33 @@ import { normalizeThumb } from '../utils/urlHelpers'
 
 export default function DrawingCard({ drawing, onView, onDownload, showCompletionStatus = false, onStatusChange }) {
   const [showUpdateModal, setShowUpdateModal] = useState(false)
+  const handleMarkInProgress = async (e) => {
+    e.stopPropagation()
+
+    const newStatus = drawing.completion_status === 'in_progress' ? 'pending' : 'in_progress'
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      const { error } = await supabase
+        .from('drawings')
+        .update({
+          completion_status: newStatus,
+          completed_by: newStatus === 'in_progress' ? user.id : null,
+          completed_at: newStatus === 'in_progress' ? new Date().toISOString() : null
+        })
+        .eq('id', drawing.id)
+
+      if (error) throw error
+
+      // Trigger refresh if callback provided
+      if (onStatusChange) onStatusChange()
+    } catch (error) {
+      console.error('Error updating status:', error)
+      alert('Error updating status: ' + error.message)
+    }
+  }
+
   const handleMarkComplete = async (e) => {
     e.stopPropagation()
 
@@ -156,7 +183,7 @@ export default function DrawingCard({ drawing, onView, onDownload, showCompletio
         <div className="flex gap-2">
           <button
             onClick={onView}
-            className="flex-1 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition-colors"
+            className="flex-1 px-3 py-2 min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition-colors"
           >
             View
           </button>
@@ -165,32 +192,49 @@ export default function DrawingCard({ drawing, onView, onDownload, showCompletio
               e.stopPropagation()
               setShowUpdateModal(true)
             }}
-            className={`px-3 py-2 text-white text-sm rounded transition-colors ${
+            className={`px-3 py-2 min-h-[44px] min-w-[44px] text-white text-sm rounded transition-colors flex items-center justify-center ${
               drawing.needs_update
                 ? 'bg-orange-600 hover:bg-orange-700'
                 : 'bg-slate-600 hover:bg-slate-500'
             }`}
             title={drawing.needs_update ? 'View Update Request' : 'Request Update'}
+            aria-label={drawing.needs_update ? 'View Update Request' : 'Request Update'}
           >
             {drawing.needs_update ? '⚠' : '⟳'}
           </button>
           {showCompletionStatus && (
-            <button
-              onClick={handleMarkComplete}
-              className={`px-3 py-2 text-white text-sm rounded transition-colors ${
-                drawing.completion_status === 'completed'
-                  ? 'bg-slate-600 hover:bg-slate-500'
-                  : 'bg-green-600 hover:bg-green-700'
-              }`}
-              title={drawing.completion_status === 'completed' ? 'Mark as Pending' : 'Mark Complete'}
-            >
-              {drawing.completion_status === 'completed' ? '↶' : '✓'}
-            </button>
+            <>
+              <button
+                onClick={handleMarkInProgress}
+                className={`px-3 py-2 min-h-[44px] min-w-[44px] text-white text-sm rounded transition-colors flex items-center justify-center ${
+                  drawing.completion_status === 'in_progress'
+                    ? 'bg-slate-600 hover:bg-slate-500'
+                    : 'bg-yellow-600 hover:bg-yellow-700'
+                }`}
+                title={drawing.completion_status === 'in_progress' ? 'Mark as Pending' : 'Mark In Progress'}
+                aria-label={drawing.completion_status === 'in_progress' ? 'Mark as Pending' : 'Mark In Progress'}
+              >
+                {drawing.completion_status === 'in_progress' ? '↶' : '▶'}
+              </button>
+              <button
+                onClick={handleMarkComplete}
+                className={`px-3 py-2 min-h-[44px] min-w-[44px] text-white text-sm rounded transition-colors flex items-center justify-center ${
+                  drawing.completion_status === 'completed'
+                    ? 'bg-slate-600 hover:bg-slate-500'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
+                title={drawing.completion_status === 'completed' ? 'Mark as Pending' : 'Mark Complete'}
+                aria-label={drawing.completion_status === 'completed' ? 'Mark as Pending' : 'Mark Complete'}
+              >
+                {drawing.completion_status === 'completed' ? '↶' : '✓'}
+              </button>
+            </>
           )}
           <button
             onClick={onDownload}
-            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+            className="px-3 py-2 min-h-[44px] min-w-[44px] bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors flex items-center justify-center"
             title="Download"
+            aria-label="Download drawing"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

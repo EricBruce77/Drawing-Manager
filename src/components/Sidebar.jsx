@@ -89,9 +89,9 @@ export default function Sidebar({ activeTab, setActiveTab, onClose, className = 
   }
 
   return (
-    <div className={`w-64 bg-slate-800 border-r border-slate-700 flex flex-col ${className}`}>
+    <div className={`w-64 bg-slate-800 border-r border-slate-700 flex flex-col max-h-screen ${className}`}>
       {/* Logo/Brand */}
-      <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+      <div className="p-4 sm:p-6 border-b border-slate-700 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,14 +99,14 @@ export default function Sidebar({ activeTab, setActiveTab, onClose, className = 
             </svg>
           </div>
           <div>
-            <h2 className="text-white font-bold text-lg">ARO Tech</h2>
+            <h2 className="text-white font-bold text-base sm:text-lg">ARO Tech</h2>
             <p className="text-slate-400 text-xs">Drawings</p>
           </div>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white lg:hidden"
+            className="text-slate-400 hover:text-white lg:hidden p-2 -m-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Close menu"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -116,14 +116,14 @@ export default function Sidebar({ activeTab, setActiveTab, onClose, className = 
         )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
+      {/* Navigation - scrollable on mobile */}
+      <nav className="flex-1 p-3 sm:p-4 space-y-2 overflow-y-auto">
         {menuItems.map((item) => (
           canAccessItem(item) && (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg transition-colors text-base ${
                 activeTab === item.id
                   ? 'bg-blue-600 text-white'
                   : 'text-slate-300 hover:bg-slate-700 hover:text-white'
@@ -137,9 +137,9 @@ export default function Sidebar({ activeTab, setActiveTab, onClose, className = 
       </nav>
 
       {/* User Profile & Logout */}
-      <div className="p-4 border-t border-slate-700">
-        <div className="flex items-center gap-3 px-4 py-3 bg-slate-700/50 rounded-lg mb-2">
-          <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center">
+      <div className="p-3 sm:p-4 border-t border-slate-700 flex-shrink-0">
+        <div className="flex items-center gap-3 px-3 sm:px-4 py-3 bg-slate-700/50 rounded-lg mb-2">
+          <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center flex-shrink-0">
             <span className="text-white text-sm font-medium">
               {profile?.full_name?.charAt(0) || 'U'}
             </span>
@@ -155,7 +155,7 @@ export default function Sidebar({ activeTab, setActiveTab, onClose, className = 
         </div>
         <button
           onClick={handleSignOut}
-          className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+          className="w-full px-4 py-3 min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2 text-base"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

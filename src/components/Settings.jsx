@@ -155,7 +155,7 @@ export default function Settings() {
   const isAdmin = profile?.role === 'admin'
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 pb-8">
       {/* Header */}
       <div>
         <h2 className="text-xl font-semibold text-white">Settings</h2>
@@ -169,7 +169,7 @@ export default function Settings() {
           {!isEditing && (
             <button
               onClick={() => setIsEditing(true)}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+              className="px-3 py-2 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
             >
               Edit Profile
             </button>
@@ -178,14 +178,14 @@ export default function Settings() {
 
         {!isEditing ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-slate-400">Full Name</p>
-                <p className="text-white font-medium mt-1">{profile?.full_name || 'N/A'}</p>
+                <p className="text-white font-medium mt-1 truncate">{profile?.full_name || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-sm text-slate-400">Email</p>
-                <p className="text-white font-medium mt-1">{profile?.email || 'N/A'}</p>
+                <p className="text-white font-medium mt-1 break-all">{profile?.email || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-sm text-slate-400">Role</p>
@@ -199,13 +199,13 @@ export default function Settings() {
               </div>
               <div>
                 <p className="text-sm text-slate-400">Department</p>
-                <p className="text-white font-medium mt-1">{profile?.department || 'N/A'}</p>
+                <p className="text-white font-medium mt-1 truncate">{profile?.department || 'N/A'}</p>
               </div>
             </div>
           </div>
         ) : (
           <form onSubmit={handleUpdateProfile} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">
                   Full Name
@@ -214,7 +214,7 @@ export default function Settings() {
                   type="text"
                   value={profileForm.full_name}
                   onChange={(e) => setProfileForm({ ...profileForm, full_name: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
                 />
               </div>
               <div>
@@ -225,7 +225,7 @@ export default function Settings() {
                   type="email"
                   value={profile?.email}
                   disabled
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-slate-400 cursor-not-allowed"
+                  className="w-full px-3 py-2 min-h-[44px] bg-slate-900 border border-slate-600 rounded text-slate-400 cursor-not-allowed text-base break-all"
                   title="Email cannot be changed"
                 />
               </div>
@@ -237,7 +237,7 @@ export default function Settings() {
                   value={profileForm.role}
                   onChange={(e) => setProfileForm({ ...profileForm, role: e.target.value })}
                   disabled={!isAdmin}
-                  className={`w-full px-3 py-2 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  className={`w-full px-3 py-2 min-h-[44px] border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-base ${
                     isAdmin ? 'bg-slate-700' : 'bg-slate-900 cursor-not-allowed'
                   }`}
                 >
@@ -254,12 +254,12 @@ export default function Settings() {
                   type="text"
                   value={profileForm.department}
                   onChange={(e) => setProfileForm({ ...profileForm, department: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
                   placeholder="e.g., Engineering"
                 />
               </div>
             </div>
-            <div className="flex gap-2 justify-end">
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
               <button
                 type="button"
                 onClick={() => {
@@ -270,14 +270,14 @@ export default function Settings() {
                     role: profile?.role || 'viewer'
                   })
                 }}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
+                className="px-4 py-2 min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors text-base"
                 disabled={loading}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                className="px-4 py-2 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors text-base"
                 disabled={loading}
               >
                 {loading ? 'Saving...' : 'Save Changes'}
@@ -294,7 +294,7 @@ export default function Settings() {
         {!showPasswordChange ? (
           <button
             onClick={() => setShowPasswordChange(true)}
-            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors flex items-center gap-2"
+            className="px-4 py-2 min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors flex items-center gap-2 text-base"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
@@ -311,7 +311,7 @@ export default function Settings() {
                 type="password"
                 value={passwordForm.newPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
                 placeholder="Enter new password"
                 required
                 minLength={6}
@@ -325,27 +325,27 @@ export default function Settings() {
                 type="password"
                 value={passwordForm.confirmPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
                 placeholder="Confirm new password"
                 required
                 minLength={6}
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <button
                 type="button"
                 onClick={() => {
                   setShowPasswordChange(false)
                   setPasswordForm({ newPassword: '', confirmPassword: '' })
                 }}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
+                className="px-4 py-2 min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors text-base"
                 disabled={loading}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                className="px-4 py-2 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors text-base"
                 disabled={loading}
               >
                 {loading ? 'Changing...' : 'Change Password'}
@@ -361,28 +361,28 @@ export default function Settings() {
 
         <div className="space-y-3">
           {/* Logout */}
-          <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-slate-700/50 rounded-lg gap-3">
             <div>
               <p className="text-white font-medium">Logout</p>
               <p className="text-slate-400 text-sm">Sign out of your account</p>
             </div>
             <button
               onClick={handleLogout}
-              className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded transition-colors"
+              className="px-4 py-2 min-h-[44px] bg-slate-600 hover:bg-slate-500 text-white rounded transition-colors flex-shrink-0 text-base"
             >
               Logout
             </button>
           </div>
 
           {/* Delete Account */}
-          <div className="flex items-center justify-between p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-red-500/10 border border-red-500/20 rounded-lg gap-3">
             <div>
               <p className="text-white font-medium">Delete Account</p>
               <p className="text-slate-400 text-sm">Permanently delete your account and all data</p>
             </div>
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+              className="px-4 py-2 min-h-[44px] bg-red-600 hover:bg-red-700 text-white rounded transition-colors flex-shrink-0 text-base whitespace-nowrap"
             >
               Delete Account
             </button>
@@ -423,25 +423,25 @@ export default function Settings() {
                   type="text"
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full px-3 py-2 min-h-[44px] bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-red-500 text-base"
                   placeholder="DELETE"
                 />
               </div>
 
-              <div className="flex gap-2 justify-end">
+              <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
                 <button
                   onClick={() => {
                     setShowDeleteConfirm(false)
                     setDeleteConfirmText('')
                   }}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
+                  className="px-4 py-2 min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors text-base"
                   disabled={loading}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDeleteAccount}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition-colors disabled:opacity-50"
+                  className="px-4 py-2 min-h-[44px] bg-red-600 hover:bg-red-700 text-white rounded transition-colors disabled:opacity-50 text-base whitespace-nowrap"
                   disabled={loading || deleteConfirmText !== 'DELETE'}
                 >
                   {loading ? 'Deleting...' : 'Delete Account'}

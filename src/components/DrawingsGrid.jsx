@@ -640,17 +640,18 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-slate-800 rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-700">
-          <div>
-            <h2 className="text-2xl font-bold text-white">{drawing.part_number}</h2>
-            <p className="text-slate-400 mt-1">{drawing.title || 'No title'}</p>
+        <div className="flex items-start sm:items-center justify-between p-4 sm:p-6 border-b border-slate-700 flex-shrink-0">
+          <div className="min-w-0 flex-1 pr-2">
+            <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-white truncate">{drawing.part_number}</h2>
+            <p className="text-slate-400 text-sm sm:text-base mt-1 truncate">{drawing.title || 'No title'}</p>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white"
+            className="text-slate-400 hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0 -m-2 p-2"
+            aria-label="Close"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -658,34 +659,37 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-6">
+        {/* Content - scrollable */}
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto flex-1">
           {/* File Preview */}
           <div className="relative">
             {/* Zoom Controls */}
-            <div className="absolute top-4 right-4 z-10 flex gap-2 bg-slate-800/90 rounded-lg p-2 border border-slate-700">
+            <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-10 flex gap-1 sm:gap-2 bg-slate-800/90 rounded-lg p-1 sm:p-2 border border-slate-700">
               <button
                 onClick={handleZoomOut}
-                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
+                className="px-2 sm:px-3 py-2 min-h-[44px] min-w-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors flex items-center justify-center"
                 title="Zoom Out"
+                aria-label="Zoom Out"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
                 </svg>
               </button>
               <button
                 onClick={handleResetZoom}
-                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors text-sm"
+                className="px-2 sm:px-3 py-2 min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors text-sm font-medium"
                 title="Reset Zoom"
+                aria-label="Reset Zoom"
               >
                 {Math.round(zoom * 100)}%
               </button>
               <button
                 onClick={handleZoomIn}
-                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
+                className="px-2 sm:px-3 py-2 min-h-[44px] min-w-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors flex items-center justify-center"
                 title="Zoom In"
+                aria-label="Zoom In"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
                 </svg>
               </button>
@@ -693,7 +697,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
 
             {/* Preview Container */}
             <div
-              className="bg-slate-900 rounded-lg p-8 text-center overflow-hidden"
+              className="bg-slate-900 rounded-lg p-4 sm:p-8 text-center overflow-hidden min-h-[300px] max-h-[60vh] flex items-center justify-center"
               onWheel={handleWheel}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
@@ -897,54 +901,56 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
           )}
 
           {/* Actions */}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             {!isEditing ? (
               <>
                 <button
                   onClick={onDownload}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-3 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white text-sm sm:text-base rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                   Download
                 </button>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Edit
-                </button>
-                <button
-                  onClick={onDelete}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  Delete
-                </button>
-                <button
-                  onClick={onClose}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
-                >
-                  Close
-                </button>
+                <div className="flex gap-2 sm:gap-3">
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="flex-1 sm:flex-initial px-4 py-3 min-h-[44px] bg-green-600 hover:bg-green-700 text-white text-sm sm:text-base rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit
+                  </button>
+                  <button
+                    onClick={onDelete}
+                    className="flex-1 sm:flex-initial px-4 py-3 min-h-[44px] bg-red-600 hover:bg-red-700 text-white text-sm sm:text-base rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="px-4 py-3 min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white text-sm sm:text-base rounded-lg font-medium transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
               </>
             ) : (
               <>
                 <button
                   onClick={handleSaveEdit}
-                  className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                  className="flex-1 px-4 py-3 min-h-[44px] bg-green-600 hover:bg-green-700 text-white text-sm sm:text-base rounded-lg font-medium transition-colors"
                 >
                   Save Changes
                 </button>
                 <button
                   onClick={() => setIsEditing(false)}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
+                  className="px-4 py-3 min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white text-sm sm:text-base rounded-lg font-medium transition-colors"
                 >
                   Cancel
                 </button>

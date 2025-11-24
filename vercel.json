@@ -1,14 +1,17 @@
 {
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
   "functions": {
     "api/generate-thumbnail.js": {
       "memory": 2048,
       "maxDuration": 60
     }
   },
-  "build": {
-    "env": {
-      "ENABLE_EXPERIMENTAL_COREPACK": "1"
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
-  },
-  "outputDirectory": "dist"
+  ]
 }
