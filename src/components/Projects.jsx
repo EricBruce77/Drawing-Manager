@@ -45,6 +45,28 @@ export default function Projects() {
         .order('name')
 
       if (error) throw error
+
+      // Fetch drawing counts for each project
+      if (data && data.length > 0) {
+        const drawingCounts = {}
+        await Promise.all(
+          data.map(async (project) => {
+            const { count } = await supabase
+              .from('drawings')
+              .select('*', { count: 'exact', head: true })
+              .eq('project_name', project.name)
+              .eq('status', 'active')
+
+            drawingCounts[project.id] = []
+            // Store empty array with correct length info for count display
+            if (count > 0) {
+              drawingCounts[project.id].length = count
+            }
+          })
+        )
+        setProjectDrawings(drawingCounts)
+      }
+
       setProjects(data || [])
     } catch (error) {
       console.error('Error fetching projects:', error)
