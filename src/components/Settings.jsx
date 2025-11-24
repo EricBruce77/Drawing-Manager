@@ -183,9 +183,9 @@ export default function Settings() {
                 <p className="text-sm text-slate-400">Full Name</p>
                 <p className="text-white font-medium mt-1 truncate">{profile?.full_name || 'N/A'}</p>
               </div>
-              <div>
+              <div className="min-w-0 overflow-hidden">
                 <p className="text-sm text-slate-400">Email</p>
-                <p className="text-white font-medium mt-1 break-all">{profile?.email || 'N/A'}</p>
+                <p className="text-white font-medium mt-1 break-all max-w-full" style={{overflowWrap: 'anywhere', wordBreak: 'break-word'}}>{profile?.email || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-sm text-slate-400">Role</p>
@@ -217,7 +217,7 @@ export default function Settings() {
                   className="w-full px-3 py-2 min-h-[44px] bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-sm font-medium text-slate-300 mb-1">
                   Email
                 </label>
@@ -225,8 +225,9 @@ export default function Settings() {
                   type="email"
                   value={profile?.email}
                   disabled
-                  className="w-full px-3 py-2 min-h-[44px] bg-slate-900 border border-slate-600 rounded text-slate-400 cursor-not-allowed text-base break-all"
+                  className="w-full px-3 py-2 min-h-[44px] bg-slate-900 border border-slate-600 rounded text-slate-400 cursor-not-allowed text-base break-all overflow-hidden"
                   title="Email cannot be changed"
+                  style={{overflowWrap: 'anywhere', wordBreak: 'break-word'}}
                 />
               </div>
               <div>

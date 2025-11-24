@@ -588,7 +588,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
     if (fileType === 'pdf' && fileUrl) {
       return (
         <div
-          className="flex flex-col items-center overflow-hidden w-full"
+          className="flex flex-col items-center overflow-hidden w-full max-w-full"
           style={{
             transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
             transformOrigin: 'center',
@@ -611,7 +611,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
           >
             <Page
               pageNumber={1}
-              width={Math.min(window.innerWidth - 100, 1200)}
+              width={Math.min(window.innerWidth * 0.85, 1000)}
               renderTextLayer={false}
               renderAnnotationLayer={false}
             />
@@ -714,7 +714,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
 
             {/* Preview Container */}
             <div
-              className="bg-slate-900 rounded-lg p-4 sm:p-8 text-center overflow-hidden min-h-[300px] max-h-[60vh] flex items-center justify-center"
+              className="bg-slate-900 rounded-lg p-4 sm:p-8 text-center overflow-hidden min-h-[300px] max-h-[60vh] flex items-center justify-center max-w-full"
               onWheel={handleWheel}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}

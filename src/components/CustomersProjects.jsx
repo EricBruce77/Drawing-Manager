@@ -285,13 +285,13 @@ export default function CustomersProjects() {
                   </div>
                 </div>
                 {canEdit && (
-                  <div className="flex flex-wrap gap-2 mt-3">
+                  <div className="flex flex-wrap gap-2 mt-3 w-full">
                     <button
                       onClick={() => {
                         setSelectedCustomer(customer)
                         setShowAddProject(true)
                       }}
-                      className="flex-1 sm:flex-initial px-3 py-2 min-h-[44px] bg-green-600 hover:bg-green-700 text-white text-sm rounded transition-colors whitespace-nowrap"
+                      className="flex-1 sm:flex-initial min-w-0 px-3 py-2 min-h-[44px] bg-green-600 hover:bg-green-700 text-white text-sm rounded transition-colors whitespace-nowrap"
                       title="Add Project"
                     >
                       + Project
@@ -305,14 +305,14 @@ export default function CustomersProjects() {
                           description: customer.description || ''
                         })
                       }}
-                      className="flex-1 sm:flex-initial px-3 py-2 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors whitespace-nowrap"
+                      className="flex-1 sm:flex-initial min-w-0 px-3 py-2 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors whitespace-nowrap"
                       title="Edit Customer"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => handleDeleteCustomer(customer.id, customer.name)}
-                      className="flex-1 sm:flex-initial px-3 py-2 min-h-[44px] bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors whitespace-nowrap"
+                      className="flex-1 sm:flex-initial min-w-0 px-3 py-2 min-h-[44px] bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors whitespace-nowrap"
                       title="Delete Customer"
                     >
                       Delete
