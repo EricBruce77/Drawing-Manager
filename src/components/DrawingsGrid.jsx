@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import DrawingCard from './DrawingCard'
 import DrawingAnnotator from './DrawingAnnotator'
@@ -464,6 +464,10 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
 
+  // Content dimensions for fit-to-view calculation
+  const [contentDimensions, setContentDimensions] = useState(null)
+  const previewContainerRef = useRef(null)
+
   useEffect(() => {
     const fetchFileUrl = async () => {
       if (!drawing.file_url) {
@@ -631,24 +635,55 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
     }
   }
 
+  // Calculate fit scale based on container and content dimensions
+  const calculateFitScale = () => {
+    if (!previewContainerRef.current || !contentDimensions) {
+      return 1
+    }
+
+    const container = previewContainerRef.current.getBoundingClientRect()
+
+    // Account for padding (p-4 sm:p-8 = 16px / 32px padding on each side)
+    const isMobile = window.innerWidth < 640
+    const padding = isMobile ? 16 * 2 : 32 * 2
+
+    const containerWidth = container.width - padding
+    const containerHeight = container.height - padding
+
+    const { width: contentWidth, height: contentHeight } = contentDimensions
+
+    // Calculate scale ratios for both dimensions
+    const widthRatio = containerWidth / contentWidth
+    const heightRatio = containerHeight / contentHeight
+
+    // Use the smaller ratio to ensure full content fits
+    const fitScale = Math.min(widthRatio, heightRatio)
+
+    // Clamp to zoom bounds (0.25 - 5x)
+    return Math.max(0.25, Math.min(5, fitScale))
+  }
+
   // Zoom and pan handlers
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev + 0.25, 5))
   }
 
   const handleZoomOut = () => {
-    setZoom(prev => Math.max(prev - 0.25, 0.5))
+    setZoom(prev => Math.max(prev - 0.25, 0.25))
   }
 
   const handleResetZoom = () => {
-    setZoom(1)
+    // Use calculateFitScale instead of hardcoding zoom=1
+    const fitScale = calculateFitScale()
+    setZoom(fitScale)
     setPan({ x: 0, y: 0 })
   }
 
   const handleWheel = (e) => {
     e.preventDefault()
+    e.stopPropagation()
     const delta = e.deltaY > 0 ? -0.1 : 0.1
-    setZoom(prev => Math.max(0.5, Math.min(5, prev + delta)))
+    setZoom(prev => Math.max(0.25, Math.min(5, prev + delta)))
   }
 
   const handleMouseDown = (e) => {
@@ -733,12 +768,18 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
 
     // PDF Preview
     if (fileType === 'pdf' && fileUrl) {
-      // Calculate responsive width: fit to container, not window
-      // Modal content area is max-w-4xl (896px) with padding, so ~800px usable width
-      const isMobile = window.innerWidth < 1024
-      const pdfWidth = isMobile
-        ? Math.min(window.innerWidth * 0.85, 600)
-        : 750 // Fixed width that fits well in the modal at 100% zoom
+      // Calculate dynamic width based on container
+      // Use container width if available, otherwise use responsive defaults
+      const containerWidth = previewContainerRef.current
+        ? previewContainerRef.current.getBoundingClientRect().width
+        : window.innerWidth
+
+      const isMobile = window.innerWidth < 640
+      const padding = isMobile ? 16 * 2 : 32 * 2
+      const maxPdfWidth = containerWidth - padding
+
+      // Use a reasonable max width for PDFs (not too large)
+      const pdfWidth = Math.min(maxPdfWidth, 1200)
 
       return (
         <div
@@ -752,7 +793,29 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
         >
           <Document
             file={fileUrl}
-            onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+            onLoadSuccess={(pdf) => {
+              setNumPages(pdf.numPages)
+              // Get the first page to calculate dimensions
+              pdf.getPage(1).then((page) => {
+                const viewport = page.getViewport({ scale: 1 })
+                // Calculate actual rendered dimensions based on pdfWidth
+                const scale = pdfWidth / viewport.width
+                const renderedWidth = pdfWidth
+                const renderedHeight = viewport.height * scale
+
+                setContentDimensions({
+                  width: renderedWidth,
+                  height: renderedHeight
+                })
+
+                // Auto-fit on load
+                setTimeout(() => {
+                  const fitScale = calculateFitScale()
+                  setZoom(fitScale)
+                  setPan({ x: 0, y: 0 })
+                }, 100)
+              })
+            }}
             onLoadError={(error) => {
               console.error('PDF load error:', error)
               setPreviewError(error?.message || 'Failed to load PDF file')
@@ -783,12 +846,27 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
         <img
           src={fileUrl}
           alt={drawing.part_number}
-          className="max-h-[450px] lg:max-h-[550px] max-w-[750px] mx-auto rounded object-contain"
+          className="max-w-full mx-auto rounded object-contain"
           style={{
             transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
             transformOrigin: 'center',
             transition: isDragging ? 'none' : 'transform 0.1s ease-out',
             cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+          }}
+          onLoad={(e) => {
+            // Capture natural dimensions for fit calculation
+            const img = e.target
+            setContentDimensions({
+              width: img.naturalWidth,
+              height: img.naturalHeight
+            })
+
+            // Auto-fit on load
+            setTimeout(() => {
+              const fitScale = calculateFitScale()
+              setZoom(fitScale)
+              setPan({ x: 0, y: 0 })
+            }, 100)
           }}
           onError={(e) => {
             console.error('Failed to load image:', drawing.file_url)
@@ -878,12 +956,14 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
 
             {/* Preview Container */}
             <div
+              ref={previewContainerRef}
               className="bg-slate-900 rounded-lg p-4 sm:p-8 text-center overflow-hidden min-h-[300px] max-h-[50vh] lg:max-h-[70vh] flex items-center justify-center max-w-full"
               onWheel={handleWheel}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
+              style={{ overscrollBehavior: 'contain' }}
             >
               {renderPreview()}
             </div>
