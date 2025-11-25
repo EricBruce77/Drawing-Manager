@@ -733,15 +733,16 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
 
     // PDF Preview
     if (fileType === 'pdf' && fileUrl) {
-      // Calculate responsive width: smaller on mobile, larger on desktop
+      // Calculate responsive width: fit to container, not window
+      // Modal content area is max-w-4xl (896px) with padding, so ~800px usable width
       const isMobile = window.innerWidth < 1024
       const pdfWidth = isMobile
         ? Math.min(window.innerWidth * 0.85, 600)
-        : Math.min(window.innerWidth * 0.6, 1200)
+        : 750 // Fixed width that fits well in the modal at 100% zoom
 
       return (
         <div
-          className="flex flex-col items-center overflow-hidden w-full max-w-full"
+          className="flex flex-col items-center w-full max-w-full"
           style={{
             transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
             transformOrigin: 'center',
@@ -782,7 +783,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
         <img
           src={fileUrl}
           alt={drawing.part_number}
-          className="max-h-[400px] lg:max-h-[600px] max-w-full mx-auto rounded object-contain"
+          className="max-h-[450px] lg:max-h-[550px] max-w-[750px] mx-auto rounded object-contain"
           style={{
             transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
             transformOrigin: 'center',
@@ -877,7 +878,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
 
             {/* Preview Container */}
             <div
-              className="bg-slate-900 rounded-lg p-4 sm:p-8 text-center overflow-auto min-h-[300px] max-h-[50vh] lg:max-h-[70vh] flex items-center justify-center max-w-full"
+              className="bg-slate-900 rounded-lg p-4 sm:p-8 text-center overflow-hidden min-h-[300px] max-h-[50vh] lg:max-h-[70vh] flex items-center justify-center max-w-full"
               onWheel={handleWheel}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
