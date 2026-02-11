@@ -876,6 +876,28 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
       )
     }
 
+    // Excel file - show icon with download prompt
+    if (['xlsx', 'xls'].includes(fileType)) {
+      return (
+        <div className="py-12">
+          <svg className="w-24 h-24 mx-auto text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18M9 4v16M15 4v16M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z" />
+          </svg>
+          <p className="text-white font-medium mt-4">{drawing.file_name}</p>
+          <p className="text-slate-400 text-sm mt-2">Excel spreadsheets can't be previewed in the browser</p>
+          <button
+            onClick={onDownload}
+            className="mt-4 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors inline-flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download to Open in Excel
+          </button>
+        </div>
+      )
+    }
+
     // No preview available
     return (
       <div className="py-12">
