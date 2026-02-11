@@ -151,6 +151,8 @@ export default function UploadDrawing({ onComplete }) {
       'application/pdf': ['.pdf'],
       'image/png': ['.png'],
       'image/jpeg': ['.jpg', '.jpeg'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.ms-excel': ['.xls'],
     },
     maxSize: 104857600, // 100MB
   })
@@ -321,7 +323,7 @@ export default function UploadDrawing({ onComplete }) {
         ) : (
           <>
             <p className="text-white font-medium mb-2">Drag & drop files here, or click to select</p>
-            <p className="text-slate-400 text-sm">Supports: DWG, DXF, PDF, PNG, JPG (max 100MB)</p>
+            <p className="text-slate-400 text-sm">Supports: DWG, DXF, PDF, PNG, JPG, XLSX (max 100MB)</p>
           </>
         )}
       </div>
