@@ -10,7 +10,6 @@ import Projects from '../components/Projects'
 import ActivityLog from '../components/ActivityLog'
 import Settings from '../components/Settings'
 import UserManagement from '../components/UserManagement'
-import SnakeGame from '../components/SnakeGame'
 
 export default function Dashboard() {
   const { profile } = useAuth()
@@ -73,7 +72,6 @@ export default function Dashboard() {
                   {activeTab === 'projects' && 'Projects'}
                   {activeTab === 'activity' && 'Activity Log'}
                   {activeTab === 'user-access' && 'User Access Control'}
-                  {activeTab === 'snake-game' && 'Snake Game'}
                   {activeTab === 'settings' && 'Settings'}
                 </h1>
                 <p className="text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1 truncate">
@@ -186,10 +184,6 @@ export default function Dashboard() {
 
           {activeTab === 'user-access' && (
             <UserManagement />
-          )}
-
-          {activeTab === 'snake-game' && (
-            <SnakeGame />
           )}
 
           {activeTab === 'settings' && (
