@@ -14,7 +14,7 @@ pdfjs.GlobalWorkerOptions.workerSrc =
     ? workerSrc
     : `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
 
-export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, refreshToken }) {
+export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, showNotesOnly, refreshToken }) {
   const [drawings, setDrawings] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDrawing, setSelectedDrawing] = useState(null)
@@ -23,7 +23,7 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
 
   useEffect(() => {
     fetchDrawings()
-  }, [searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, refreshToken])
+  }, [searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, showNotesOnly, refreshToken])
 
   // Real-time subscription for new drawings (e.g., from Google Drive via n8n)
   useEffect(() => {
@@ -74,7 +74,7 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [searchQuery, selectedCustomer, selectedProject, showUpdatesOnly]) // Re-subscribe when filters change
+  }, [searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, showNotesOnly]) // Re-subscribe when filters change
 
   // Helper function to build base select query
   const baseSelect = () =>
@@ -100,6 +100,9 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
     }
     if (showUpdatesOnly) {
       filteredQuery = filteredQuery.eq('needs_update', true)
+    }
+    if (showNotesOnly) {
+      filteredQuery = filteredQuery.not('notes', 'is', null).neq('notes', '')
     }
     return filteredQuery
   }
@@ -448,8 +451,13 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
     title: drawing.title || '',
     description: drawing.description || '',
     customer_name: drawing.customer_name || '',
-    project_name: drawing.project_name || ''
+    project_name: drawing.project_name || '',
+    notes: drawing.notes || ''
   })
+
+  // Inline note editing state (for quick add without full edit mode)
+  const [isEditingNote, setIsEditingNote] = useState(false)
+  const [noteText, setNoteText] = useState(drawing.notes || '')
 
   // Customer and Project creation state
   const [newCustomerName, setNewCustomerName] = useState('')
@@ -545,7 +553,8 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
         title: editedData.title,
         description: editedData.description,
         customer_name: editedData.customer_name || null,
-        project_name: editedData.project_name || null
+        project_name: editedData.project_name || null,
+        notes: editedData.notes || null
       }
 
       const { error } = await supabase
@@ -557,10 +566,28 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
 
       alert('Drawing updated successfully!')
       setIsEditing(false)
-      window.location.reload() // Refresh to show updated data
+      onClose() // Close modal; real-time subscription will refresh the grid
     } catch (error) {
       console.error('Error updating drawing:', error)
       alert('Error updating drawing: ' + error.message)
+    }
+  }
+
+  const handleSaveNote = async () => {
+    try {
+      const { error } = await supabase
+        .from('drawings')
+        .update({ notes: noteText || null })
+        .eq('id', drawing.id)
+
+      if (error) throw error
+
+      setIsEditingNote(false)
+      // Update drawing object in-place for immediate UI feedback
+      drawing.notes = noteText || null
+    } catch (error) {
+      console.error('Error saving note:', error)
+      alert('Error saving note: ' + error.message)
     }
   }
 
@@ -1021,6 +1048,56 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
                   <p className="text-white bg-slate-900 rounded-lg p-3">{drawing.ai_description}</p>
                 </div>
               )}
+
+              {/* Notes */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-medium text-slate-400 flex items-center gap-1.5">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                    </svg>
+                    Notes
+                  </h3>
+                  {!isEditingNote && (
+                    <button
+                      onClick={() => setIsEditingNote(true)}
+                      className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                    >
+                      {drawing.notes ? 'Edit Note' : '+ Add Note'}
+                    </button>
+                  )}
+                </div>
+                {isEditingNote ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={noteText}
+                      onChange={(e) => setNoteText(e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Add a note or comment..."
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSaveNote}
+                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded transition-colors"
+                      >
+                        Save Note
+                      </button>
+                      <button
+                        onClick={() => { setIsEditingNote(false); setNoteText(drawing.notes || '') }}
+                        className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : drawing.notes ? (
+                  <p className="text-white bg-slate-900 rounded-lg p-3">{drawing.notes}</p>
+                ) : (
+                  <p className="text-slate-500 text-sm italic">No notes added yet.</p>
+                )}
+              </div>
             </>
           ) : (
             <div className="space-y-4">
@@ -1178,6 +1255,18 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
                   onChange={(e) => setEditedData({...editedData, description: e.target.value})}
                   rows={3}
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Notes</label>
+                <textarea
+                  value={editedData.notes}
+                  onChange={(e) => setEditedData({...editedData, notes: e.target.value})}
+                  rows={3}
+                  placeholder="Add notes or comments..."
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
