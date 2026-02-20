@@ -20,6 +20,8 @@ export default function Dashboard() {
   const [selectedProject, setSelectedProject] = useState(null)
   const [showUpdatesOnly, setShowUpdatesOnly] = useState(false)
   const [showNotesOnly, setShowNotesOnly] = useState(false)
+  const [showCompletedOnly, setShowCompletedOnly] = useState(false)
+  const [showInProgressOnly, setShowInProgressOnly] = useState(false)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [refreshToken, setRefreshToken] = useState(0)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -144,6 +146,10 @@ export default function Dashboard() {
                   setShowUpdatesOnly={setShowUpdatesOnly}
                   showNotesOnly={showNotesOnly}
                   setShowNotesOnly={setShowNotesOnly}
+                  showCompletedOnly={showCompletedOnly}
+                  setShowCompletedOnly={setShowCompletedOnly}
+                  showInProgressOnly={showInProgressOnly}
+                  setShowInProgressOnly={setShowInProgressOnly}
                 />
               )}
 
@@ -155,6 +161,8 @@ export default function Dashboard() {
                   selectedProject={selectedProject}
                   showUpdatesOnly={showUpdatesOnly}
                   showNotesOnly={showNotesOnly}
+                  showCompletedOnly={showCompletedOnly}
+                  showInProgressOnly={showInProgressOnly}
                   refreshToken={refreshToken}
                 />
               ) : (

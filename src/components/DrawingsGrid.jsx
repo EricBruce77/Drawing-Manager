@@ -14,7 +14,7 @@ pdfjs.GlobalWorkerOptions.workerSrc =
     ? workerSrc
     : `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
 
-export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, showNotesOnly, refreshToken }) {
+export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, showNotesOnly, showCompletedOnly, showInProgressOnly, refreshToken }) {
   const [drawings, setDrawings] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDrawing, setSelectedDrawing] = useState(null)
@@ -23,7 +23,7 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
 
   useEffect(() => {
     fetchDrawings()
-  }, [searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, showNotesOnly, refreshToken])
+  }, [searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, showNotesOnly, showCompletedOnly, showInProgressOnly, refreshToken])
 
   // Real-time subscription for new drawings (e.g., from Google Drive via n8n)
   useEffect(() => {
@@ -74,7 +74,7 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, showNotesOnly]) // Re-subscribe when filters change
+  }, [searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, showNotesOnly, showCompletedOnly, showInProgressOnly]) // Re-subscribe when filters change
 
   // Helper function to build base select query
   const baseSelect = () =>
@@ -103,6 +103,12 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
     }
     if (showNotesOnly) {
       filteredQuery = filteredQuery.not('notes', 'is', null).neq('notes', '')
+    }
+    if (showCompletedOnly) {
+      filteredQuery = filteredQuery.eq('completion_status', 'completed')
+    }
+    if (showInProgressOnly) {
+      filteredQuery = filteredQuery.eq('completion_status', 'in_progress')
     }
     return filteredQuery
   }

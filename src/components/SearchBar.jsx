@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
-export default function SearchBar({ searchQuery, setSearchQuery, selectedCustomer, setSelectedCustomer, selectedProject, setSelectedProject, showUpdatesOnly, setShowUpdatesOnly, showNotesOnly, setShowNotesOnly }) {
+export default function SearchBar({ searchQuery, setSearchQuery, selectedCustomer, setSelectedCustomer, selectedProject, setSelectedProject, showUpdatesOnly, setShowUpdatesOnly, showNotesOnly, setShowNotesOnly, showCompletedOnly, setShowCompletedOnly, showInProgressOnly, setShowInProgressOnly }) {
   const [customers, setCustomers] = useState([])
   const [projects, setProjects] = useState([])
   const [localSearchValue, setLocalSearchValue] = useState(searchQuery)
@@ -134,8 +134,46 @@ export default function SearchBar({ searchQuery, setSearchQuery, selectedCustome
           </label>
         </div>
 
+        {/* Completed Filter */}
+        <div className="flex items-center">
+          <label className="flex items-center gap-2 px-4 py-2 bg-slate-700 rounded-lg cursor-pointer hover:bg-slate-600 transition-colors">
+            <input
+              type="checkbox"
+              checked={showCompletedOnly || false}
+              onChange={(e) => {
+                setShowCompletedOnly(e.target.checked)
+                if (e.target.checked) setShowInProgressOnly(false)
+              }}
+              className="w-4 h-4 rounded border-slate-500 text-green-600 focus:ring-2 focus:ring-green-500 focus:ring-offset-0 bg-slate-600"
+            />
+            <span className="text-sm text-slate-300 whitespace-nowrap flex items-center gap-1">
+              <span className="text-green-400">✓</span>
+              Completed
+            </span>
+          </label>
+        </div>
+
+        {/* In Progress Filter */}
+        <div className="flex items-center">
+          <label className="flex items-center gap-2 px-4 py-2 bg-slate-700 rounded-lg cursor-pointer hover:bg-slate-600 transition-colors">
+            <input
+              type="checkbox"
+              checked={showInProgressOnly || false}
+              onChange={(e) => {
+                setShowInProgressOnly(e.target.checked)
+                if (e.target.checked) setShowCompletedOnly(false)
+              }}
+              className="w-4 h-4 rounded border-slate-500 text-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-offset-0 bg-slate-600"
+            />
+            <span className="text-sm text-slate-300 whitespace-nowrap flex items-center gap-1">
+              <span className="text-yellow-400">⟳</span>
+              In Progress
+            </span>
+          </label>
+        </div>
+
         {/* Clear Filters */}
-        {(searchQuery || selectedCustomer || selectedProject || showUpdatesOnly || showNotesOnly) && (
+        {(searchQuery || selectedCustomer || selectedProject || showUpdatesOnly || showNotesOnly || showCompletedOnly || showInProgressOnly) && (
           <button
             onClick={() => {
               setSearchQuery('')
@@ -143,6 +181,8 @@ export default function SearchBar({ searchQuery, setSearchQuery, selectedCustome
               setSelectedProject(null)
               setShowUpdatesOnly(false)
               setShowNotesOnly(false)
+              setShowCompletedOnly(false)
+              setShowInProgressOnly(false)
             }}
             className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white rounded-lg transition-colors"
           >
