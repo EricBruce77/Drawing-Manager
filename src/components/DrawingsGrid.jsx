@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { useToast } from '../contexts/ToastContext'
 import DrawingCard from './DrawingCard'
 import DrawingAnnotator from './DrawingAnnotator'
 import { Document, Page, pdfjs } from 'react-pdf'
@@ -14,16 +15,19 @@ pdfjs.GlobalWorkerOptions.workerSrc =
     ? workerSrc
     : `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
 
-export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, showNotesOnly, showCompletedOnly, showInProgressOnly, refreshToken }) {
+export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, showNotesOnly, showCompletedOnly, showInProgressOnly, refreshToken, sortOption = 'newest', currentPage = 1, setCurrentPage, setTotalCount, pinnedIds = new Set(), togglePin }) {
+  const toast = useToast()
   const [drawings, setDrawings] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDrawing, setSelectedDrawing] = useState(null)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState(new Set())
 
+  const PAGE_SIZE = 24
+
   useEffect(() => {
     fetchDrawings()
-  }, [searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, showNotesOnly, showCompletedOnly, showInProgressOnly, refreshToken])
+  }, [searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, showNotesOnly, showCompletedOnly, showInProgressOnly, refreshToken, sortOption, currentPage])
 
   // Real-time subscription for new drawings (e.g., from Google Drive via n8n)
   useEffect(() => {
@@ -113,26 +117,71 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
     return filteredQuery
   }
 
+  // Helper to apply sort to a query
+  const applySort = (query, sort) => {
+    switch (sort) {
+      case 'oldest':
+        return query.order('created_at', { ascending: true })
+      case 'part_az':
+        return query.order('part_number', { ascending: true })
+      case 'part_za':
+        return query.order('part_number', { ascending: false })
+      case 'customer_az':
+        return query.order('customer_name', { ascending: true })
+      case 'recently_updated':
+        return query.order('updated_at', { ascending: false })
+      case 'newest':
+      default:
+        return query.order('created_at', { ascending: false })
+    }
+  }
+
+  // Client-side sort for search results
+  const clientSort = (items, sort) => {
+    const sorted = [...items]
+    switch (sort) {
+      case 'oldest':
+        return sorted.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      case 'part_az':
+        return sorted.sort((a, b) => (a.part_number || '').localeCompare(b.part_number || ''))
+      case 'part_za':
+        return sorted.sort((a, b) => (b.part_number || '').localeCompare(a.part_number || ''))
+      case 'customer_az':
+        return sorted.sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || ''))
+      case 'recently_updated':
+        return sorted.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
+      case 'newest':
+      default:
+        return sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    }
+  }
+
   const fetchDrawings = async (showLoading = true) => {
     if (showLoading) setLoading(true)
     try {
-      // Normalize search query: trim and lowercase for consistency
       const normalizedQuery = searchQuery?.trim()
+      const from = (currentPage - 1) * PAGE_SIZE
+      const to = from + PAGE_SIZE - 1
 
-      // No search query - return all (with optional customer filter)
+      // No search query - return all (with optional filters)
       if (!normalizedQuery) {
-        const { data, error } = await applySharedFilters(
-          baseSelect().order('created_at', { ascending: false })
+        // Count query
+        const countQuery = applySharedFilters(
+          supabase.from('drawings').select('*', { count: 'exact', head: true }).eq('status', 'active')
         )
+        const { count, error: countError } = await countQuery
+        if (!countError && setTotalCount) setTotalCount(count || 0)
+
+        const { data, error } = await applySharedFilters(
+          applySort(baseSelect(), sortOption)
+        ).range(from, to)
         if (error) throw error
 
-        // Thumbnails are already public URLs from the Edge Function, use them directly
         setDrawings(data || [])
         return
       }
 
-      // Use advanced search RPC with relevance ranking
-      // The RPC handles exact matches, partial matches, and full-text search
+      // Search path with RPC
       const { data: rankedMatches, error: searchError } = await supabase.rpc(
         'search_drawings',
         { search_query: normalizedQuery }
@@ -140,33 +189,40 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
 
       if (searchError) throw searchError
 
-      // If no results from RPC, set empty array
       if (!rankedMatches || rankedMatches.length === 0) {
         setDrawings([])
+        if (setTotalCount) setTotalCount(0)
         return
       }
 
-      // Extract IDs from ranked results
       const ids = rankedMatches.map((match) => match.id)
 
-      // Fetch full drawing data for matched IDs (with customer filter if needed)
+      // Fetch full drawing data for matched IDs
       const { data: fullDrawings, error: fetchError } = await applySharedFilters(
         baseSelect().in('id', ids)
       )
 
       if (fetchError) throw fetchError
 
-      // Sort by relevance order from RPC (already sorted by relevance DESC)
-      const order = new Map(ids.map((id, index) => [id, index]))
-      const sortedDrawings = (fullDrawings || []).sort(
-        (a, b) => order.get(a.id) - order.get(b.id)
-      )
+      // Sort: use relevance if default sort, otherwise client-sort
+      let sortedDrawings
+      if (sortOption === 'newest') {
+        const order = new Map(ids.map((id, index) => [id, index]))
+        sortedDrawings = (fullDrawings || []).sort(
+          (a, b) => order.get(a.id) - order.get(b.id)
+        )
+      } else {
+        sortedDrawings = clientSort(fullDrawings || [], sortOption)
+      }
 
-      // Thumbnails are already public URLs from the Edge Function, use them directly
-      setDrawings(sortedDrawings)
+      if (setTotalCount) setTotalCount(sortedDrawings.length)
+
+      // Paginate client-side for search results
+      const paged = sortedDrawings.slice(from, to + 1)
+      setDrawings(paged)
     } catch (error) {
       console.error('Error fetching drawings:', error)
-      alert('Error searching drawings: ' + error.message)
+      toast.error('Error searching drawings: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -176,7 +232,7 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
     try {
       // Check if file_url exists
       if (!drawing.file_url) {
-        alert('File path not found. This drawing may be from an older version.')
+        toast.error('File path not found. This drawing may be from an older version.')
         return
       }
 
@@ -201,7 +257,7 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
       })
     } catch (error) {
       console.error('Error downloading:', error)
-      alert('Error downloading file: ' + error.message)
+      toast.error('Error downloading file: ' + error.message)
     }
   }
 
@@ -234,14 +290,14 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
 
       if (dbError) throw dbError
 
-      alert('Drawing deleted successfully!')
+      toast.success('Drawing deleted successfully!')
 
       // Close modal and refresh list
       setSelectedDrawing(null)
       fetchDrawings()
     } catch (error) {
       console.error('Error deleting drawing:', error)
-      alert('Error deleting drawing: ' + error.message)
+      toast.error('Error deleting drawing: ' + error.message)
     }
   }
 
@@ -275,7 +331,7 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
   // Bulk delete selected drawings
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) {
-      alert('No drawings selected')
+      toast.info('No drawings selected')
       return
     }
 
@@ -317,14 +373,11 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
     }
 
     // Show results
-    let message = `Successfully deleted ${results.success.length} drawing(s)`
     if (results.failed.length > 0) {
-      message += `\n\nFailed to delete ${results.failed.length} drawing(s):`
-      results.failed.forEach(f => {
-        message += `\n- ${f.partNumber}: ${f.error}`
-      })
+      toast.error(`Deleted ${results.success.length}, failed ${results.failed.length} drawing(s)`)
+    } else {
+      toast.success(`Successfully deleted ${results.success.length} drawing(s)`)
     }
-    alert(message)
 
     // Clear selections and refresh
     setSelectedIds(new Set())
@@ -403,31 +456,66 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {drawings.map((drawing) => (
-          <div key={drawing.id} className="relative">
-            {selectMode && (
-              <div className="absolute top-2 left-2 z-10">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(drawing.id)}
-                  onChange={() => toggleDrawingSelection(drawing.id)}
-                  className="w-6 h-6 rounded border-2 border-slate-600 bg-slate-800 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                  aria-label={`Select ${drawing.part_number}`}
+      {(() => {
+        // Sort pinned drawings to top
+        const sortedDrawings = [...drawings].sort((a, b) => {
+          const aPinned = pinnedIds.has(a.id)
+          const bPinned = pinnedIds.has(b.id)
+          if (aPinned && !bPinned) return -1
+          if (!aPinned && bPinned) return 1
+          return 0
+        })
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {sortedDrawings.map((drawing) => (
+              <div key={drawing.id} className="relative">
+                {selectMode && (
+                  <div className="absolute top-2 left-2 z-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(drawing.id)}
+                      onChange={() => toggleDrawingSelection(drawing.id)}
+                      className="w-6 h-6 rounded border-2 border-slate-600 bg-slate-800 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                      aria-label={`Select ${drawing.part_number}`}
+                    />
+                  </div>
+                )}
+                <DrawingCard
+                  drawing={drawing}
+                  onView={() => !selectMode && setSelectedDrawing(drawing)}
+                  onDownload={() => handleDownload(drawing)}
+                  showCompletionStatus={!selectMode}
+                  onStatusChange={() => fetchDrawings(false)}
+                  isPinned={pinnedIds.has(drawing.id)}
+                  onTogglePin={togglePin ? () => togglePin(drawing.id) : undefined}
                 />
               </div>
-            )}
-            <DrawingCard
-              key={drawing.id}
-              drawing={drawing}
-              onView={() => !selectMode && setSelectedDrawing(drawing)}
-              onDownload={() => handleDownload(drawing)}
-              showCompletionStatus={!selectMode}
-              onStatusChange={() => fetchDrawings(false)}
-            />
+            ))}
           </div>
-        ))}
-      </div>
+        )
+      })()}
+
+      {/* Pagination Controls */}
+      {setCurrentPage && (
+        <div className="flex items-center justify-center gap-4 mt-6">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage <= 1}
+            className="px-4 py-2 min-h-[44px] bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm"
+          >
+            Previous
+          </button>
+          <span className="text-slate-400 text-sm">Page {currentPage}</span>
+          <button
+            onClick={() => setCurrentPage(p => p + 1)}
+            disabled={drawings.length < PAGE_SIZE}
+            className="px-4 py-2 min-h-[44px] bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm"
+          >
+            Next
+          </button>
+        </div>
+      )}
 
       {/* Drawing Detail Modal */}
       {selectedDrawing && (
@@ -436,6 +524,9 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
           onClose={() => setSelectedDrawing(null)}
           onDownload={() => handleDownload(selectedDrawing)}
           onDelete={() => handleDelete(selectedDrawing)}
+          drawings={drawings}
+          onNavigate={(drawing) => setSelectedDrawing(drawing)}
+          toast={toast}
         />
       )}
     </>
@@ -443,7 +534,7 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
 }
 
 // Drawing Detail Modal Component
-function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
+function DrawingDetailModal({ drawing, onClose, onDownload, onDelete, drawings = [], onNavigate, toast }) {
   const [fileUrl, setFileUrl] = useState(null)
   const [loadingPreview, setLoadingPreview] = useState(true)
   const [previewError, setPreviewError] = useState(null)
@@ -481,6 +572,61 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
   // Content dimensions for fit-to-view calculation
   const [contentDimensions, setContentDimensions] = useState(null)
   const previewContainerRef = useRef(null)
+
+  // Revision history state
+  const [showHistory, setShowHistory] = useState(false)
+  const [history, setHistory] = useState([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Skip if focus is in input/textarea/select
+      const tag = e.target.tagName.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+
+      if (e.key === 'Escape') {
+        onClose()
+      } else if (e.key === 'ArrowLeft') {
+        const idx = drawings.findIndex(d => d.id === drawing.id)
+        if (idx > 0 && onNavigate) onNavigate(drawings[idx - 1])
+      } else if (e.key === 'ArrowRight') {
+        const idx = drawings.findIndex(d => d.id === drawing.id)
+        if (idx < drawings.length - 1 && onNavigate) onNavigate(drawings[idx + 1])
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [drawing, drawings, onClose, onNavigate])
+
+  const fetchHistory = async () => {
+    if (loadingHistory) return
+    setLoadingHistory(true)
+    try {
+      const { data, error } = await supabase
+        .from('activity_log')
+        .select('*')
+        .eq('drawing_id', drawing.id)
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      if (error) throw error
+
+      // Fetch user names
+      const userIds = [...new Set((data || []).map(a => a.user_id).filter(Boolean))]
+      let usersMap = new Map()
+      if (userIds.length > 0) {
+        const { data: users } = await supabase.from('profiles').select('id, full_name').in('id', userIds)
+        usersMap = new Map((users || []).map(u => [u.id, u.full_name]))
+      }
+
+      setHistory((data || []).map(a => ({ ...a, user_name: usersMap.get(a.user_id) || 'Unknown' })))
+    } catch (error) {
+      console.error('Error fetching history:', error)
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
 
   useEffect(() => {
     const fetchFileUrl = async () => {
@@ -563,6 +709,25 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
         notes: editedData.notes || null
       }
 
+      // Track changes for revision history
+      const changes = {}
+      const original = {
+        part_number: drawing.part_number,
+        revision: drawing.revision || 'A',
+        title: drawing.title || '',
+        description: drawing.description || '',
+        customer_name: drawing.customer_name || '',
+        project_name: drawing.project_name || '',
+        notes: drawing.notes || ''
+      }
+      for (const key of Object.keys(updateData)) {
+        const oldVal = original[key] || ''
+        const newVal = updateData[key] || ''
+        if (oldVal !== newVal) {
+          changes[key] = { from: oldVal, to: newVal }
+        }
+      }
+
       const { error } = await supabase
         .from('drawings')
         .update(updateData)
@@ -570,12 +735,21 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
 
       if (error) throw error
 
-      alert('Drawing updated successfully!')
+      // Log edit to activity_log with change details
+      if (Object.keys(changes).length > 0) {
+        await supabase.from('activity_log').insert({
+          drawing_id: drawing.id,
+          activity: 'edit',
+          details: { changes }
+        })
+      }
+
+      toast.success('Drawing updated successfully!')
       setIsEditing(false)
-      onClose() // Close modal; real-time subscription will refresh the grid
+      onClose()
     } catch (error) {
       console.error('Error updating drawing:', error)
-      alert('Error updating drawing: ' + error.message)
+      toast.error('Error updating drawing: ' + error.message)
     }
   }
 
@@ -593,13 +767,13 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
       drawing.notes = noteText || null
     } catch (error) {
       console.error('Error saving note:', error)
-      alert('Error saving note: ' + error.message)
+      toast.error('Error saving note: ' + error.message)
     }
   }
 
   const createCustomer = async () => {
     if (!newCustomerName.trim()) {
-      alert('Customer name is required')
+      toast.error('Customer name is required')
       return
     }
 
@@ -620,18 +794,18 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
       }
     } catch (error) {
       console.error('Error creating customer:', error)
-      alert('Error creating customer: ' + error.message)
+      toast.error('Error creating customer: ' + error.message)
     }
   }
 
   const createProject = async () => {
     if (!newProjectName.trim()) {
-      alert('Project name is required')
+      toast.error('Project name is required')
       return
     }
 
     if (!editedData.customer_name) {
-      alert('Please select a customer first')
+      toast.error('Please select a customer first')
       return
     }
 
@@ -639,7 +813,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
       // Find the customer ID from the customer name
       const customer = customers.find(c => c.name === editedData.customer_name)
       if (!customer) {
-        alert('Selected customer not found')
+        toast.error('Selected customer not found')
         return
       }
 
@@ -664,7 +838,7 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
       }
     } catch (error) {
       console.error('Error creating project:', error)
-      alert('Error creating project: ' + error.message)
+      toast.error('Error creating project: ' + error.message)
     }
   }
 
@@ -1102,6 +1276,47 @@ function DrawingDetailModal({ drawing, onClose, onDownload, onDelete }) {
                   <p className="text-white bg-slate-900 rounded-lg p-3">{drawing.notes}</p>
                 ) : (
                   <p className="text-slate-500 text-sm italic">No notes added yet.</p>
+                )}
+              </div>
+              {/* Revision History */}
+              <div>
+                <button
+                  onClick={() => {
+                    setShowHistory(!showHistory)
+                    if (!showHistory && history.length === 0) fetchHistory()
+                  }}
+                  className="text-sm text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  History {showHistory ? '(hide)' : '(show)'}
+                </button>
+                {showHistory && (
+                  <div className="mt-2 space-y-2 max-h-48 overflow-y-auto">
+                    {loadingHistory ? (
+                      <div className="text-slate-400 text-sm">Loading...</div>
+                    ) : history.length === 0 ? (
+                      <p className="text-slate-500 text-sm italic">No history recorded yet.</p>
+                    ) : (
+                      history.map(entry => (
+                        <div key={entry.id} className="bg-slate-900 rounded p-2 text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-300 font-medium capitalize">{entry.activity}</span>
+                            <span className="text-slate-500 text-xs">{new Date(entry.created_at).toLocaleString()}</span>
+                          </div>
+                          <span className="text-slate-400 text-xs">by {entry.user_name}</span>
+                          {entry.details?.changes && (
+                            <div className="mt-1 text-xs text-slate-400">
+                              {Object.entries(entry.details.changes).map(([field, { from, to }]) => (
+                                <div key={field}>{field}: "{from}" &rarr; "{to}"</div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 )}
               </div>
             </>

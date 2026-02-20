@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { useToast } from '../contexts/ToastContext'
 import DrawingCard from './DrawingCard'
 
 export default function FolderView({ searchQuery, refreshToken }) {
+  const toast = useToast()
   const [customers, setCustomers] = useState([])
   const [expandedCustomers, setExpandedCustomers] = useState(new Set())
   const [customerDrawings, setCustomerDrawings] = useState({})
@@ -119,7 +121,7 @@ export default function FolderView({ searchQuery, refreshToken }) {
       setCustomerDrawings(grouped)
     } catch (error) {
       console.error('Error fetching folder view:', error)
-      alert('Error loading folders: ' + error.message)
+      toast.error('Error loading folders: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -138,7 +140,7 @@ export default function FolderView({ searchQuery, refreshToken }) {
   const handleView = async (drawing) => {
     try {
       if (!drawing.file_url) {
-        alert('No file path for this drawing.')
+        toast.error('No file path for this drawing.')
         return
       }
 
@@ -153,14 +155,14 @@ export default function FolderView({ searchQuery, refreshToken }) {
       }
     } catch (err) {
       console.error('Error opening drawing:', err)
-      alert('Error opening drawing: ' + (err.message || err))
+      toast.error('Error opening drawing: ' + (err.message || err))
     }
   }
 
   const handleDownload = async (drawing) => {
     try {
       if (!drawing.file_url) {
-        alert('No file path for this drawing.')
+        toast.error('No file path for this drawing.')
         return
       }
 
@@ -177,7 +179,7 @@ export default function FolderView({ searchQuery, refreshToken }) {
       }
     } catch (err) {
       console.error('Error downloading drawing:', err)
-      alert('Error downloading drawing: ' + (err.message || err))
+      toast.error('Error downloading drawing: ' + (err.message || err))
     }
   }
 

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 
 export default function Login() {
+  const toast = useToast()
   const [isSignUp, setIsSignUp] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -21,7 +23,7 @@ export default function Login() {
       if (isSignUp) {
         const { error } = await signUp(email, password, fullName)
         if (error) throw error
-        alert('Account created! Please check your email to confirm.')
+        toast.success('Account created! Please check your email to confirm.')
         setIsSignUp(false)
       } else {
         const { error } = await signIn(email, password)

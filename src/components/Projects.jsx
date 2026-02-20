@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import ConfirmModal from './ConfirmModal'
 
 export default function Projects() {
+  const toast = useToast()
   const { user, profile } = useAuth()
   const [projects, setProjects] = useState([])
   const [customers, setCustomers] = useState([])
@@ -51,6 +53,20 @@ export default function Projects() {
     }
   }, [expandedProjects])
 
+  // When projects load, fetch drawings for any already-expanded projects
+  useEffect(() => {
+    if (projects.length === 0) return
+
+    expandedProjects.forEach((projectId) => {
+      if (!Array.isArray(projectDrawings[projectId])) {
+        const project = projects.find(p => p.id === projectId)
+        if (project) {
+          fetchProjectDrawings(projectId, project.name)
+        }
+      }
+    })
+  }, [projects, expandedProjects])
+
   const fetchProjects = async () => {
     try {
       const { data, error } = await supabase
@@ -74,54 +90,26 @@ export default function Projects() {
               .eq('project_name', project.name)
               .eq('status', 'active')
 
-            drawingCounts[project.id] = []
-            // Store empty array with correct length info for count display
-            if (count > 0) {
-              drawingCounts[project.id].length = count
-            }
+            drawingCounts[project.id] = { _count: count || 0 }
           })
         )
-        setProjectDrawings(drawingCounts)
-
-        // Fetch full drawing data for any expanded projects
-        const expandedIds = Array.from(expandedProjects)
-        if (expandedIds.length > 0) {
-          for (const projectId of expandedIds) {
-            const project = data.find(p => p.id === projectId)
-            if (project && !drawingCounts[projectId]?.length) {
-              // Only fetch if we don't already have data
-              const { data: drawings, error: drawingsError } = await supabase
-                .from('drawings')
-                .select('*')
-                .eq('project_name', project.name)
-                .eq('status', 'active')
-                .order('created_at', { ascending: false })
-
-              if (!drawingsError && drawings) {
-                drawingCounts[projectId] = drawings
-              }
-            } else if (project && drawingCounts[projectId]?.length > 0) {
-              // Fetch full data for expanded projects that have drawings
-              const { data: drawings, error: drawingsError } = await supabase
-                .from('drawings')
-                .select('*')
-                .eq('project_name', project.name)
-                .eq('status', 'active')
-                .order('created_at', { ascending: false })
-
-              if (!drawingsError && drawings) {
-                drawingCounts[projectId] = drawings
-              }
+        setProjectDrawings(prev => {
+          const next = { ...drawingCounts }
+          // Preserve any already-fetched drawing arrays (avoids race condition
+          // where a second fetch overwrites data loaded by expandProjectDrawings)
+          for (const [id, val] of Object.entries(prev)) {
+            if (Array.isArray(val)) {
+              next[id] = val
             }
           }
-          setProjectDrawings(drawingCounts)
-        }
+          return next
+        })
       }
 
       setProjects(data || [])
     } catch (error) {
       console.error('Error fetching projects:', error)
-      alert('Error loading projects: ' + error.message)
+      toast.error('Error loading projects: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -145,7 +133,7 @@ export default function Projects() {
     e.preventDefault()
 
     if (!projectForm.customer_id) {
-      alert('Please select a customer')
+      toast.error('Please select a customer')
       return
     }
 
@@ -162,13 +150,13 @@ export default function Projects() {
 
       if (error) throw error
 
-      alert('Project added successfully!')
+      toast.success('Project added successfully!')
       setShowAddProject(false)
       setProjectForm({ name: '', project_number: '', description: '', customer_id: '' })
       fetchProjects()
     } catch (error) {
       console.error('Error adding project:', error)
-      alert('Error adding project: ' + error.message)
+      toast.error('Error adding project: ' + error.message)
     }
   }
 
@@ -176,7 +164,7 @@ export default function Projects() {
     e.preventDefault()
 
     if (!projectForm.customer_id) {
-      alert('Please select a customer')
+      toast.error('Please select a customer')
       return
     }
 
@@ -193,13 +181,13 @@ export default function Projects() {
 
       if (error) throw error
 
-      alert('Project updated successfully!')
+      toast.success('Project updated successfully!')
       setEditingProject(null)
       setProjectForm({ name: '', project_number: '', description: '', customer_id: '' })
       fetchProjects()
     } catch (error) {
       console.error('Error updating project:', error)
-      alert('Error updating project: ' + error.message)
+      toast.error('Error updating project: ' + error.message)
     }
   }
 
@@ -224,7 +212,7 @@ export default function Projects() {
           setProjects(projects.filter(p => p.id !== projectId))
         } catch (error) {
           console.error('Error deleting project:', error)
-          alert('Failed to delete project: ' + error.message + '\nPlease check the console for details.')
+          toast.error('Failed to delete project: ' + error.message)
         }
       }
     })
@@ -236,8 +224,8 @@ export default function Projects() {
       newExpanded.delete(projectId)
     } else {
       newExpanded.add(projectId)
-      // Fetch drawings for this project if not already loaded
-      if (!projectDrawings[projectId]) {
+      // Fetch drawings for this project if not already loaded as an array
+      if (!Array.isArray(projectDrawings[projectId])) {
         await fetchProjectDrawings(projectId, projectName)
       }
     }
@@ -350,7 +338,9 @@ export default function Projects() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  {projectDrawings[project.id]?.length || 0} drawings
+                  {Array.isArray(projectDrawings[project.id])
+                    ? projectDrawings[project.id].length
+                    : projectDrawings[project.id]?._count || 0} drawings
                 </div>
 
                 {/* Actions */}
@@ -383,7 +373,7 @@ export default function Projects() {
               {/* Drawings List */}
               {expandedProjects.has(project.id) && (
                 <div className="border-t border-slate-700 bg-slate-900 p-4">
-                  {projectDrawings[project.id]?.length > 0 ? (
+                  {Array.isArray(projectDrawings[project.id]) && projectDrawings[project.id].length > 0 ? (
                     <div className="space-y-2">
                       <h4 className="text-sm font-medium text-slate-300 mb-3">Project Drawings</h4>
                       {projectDrawings[project.id].map((drawing) => (

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 
 export default function UpdateRequestModal({ drawing, isOpen, onClose, onSuccess }) {
+  const toast = useToast()
   const { user } = useAuth()
   const [description, setDescription] = useState(drawing?.update_description || '')
   const [submitting, setSubmitting] = useState(false)
@@ -31,7 +33,7 @@ export default function UpdateRequestModal({ drawing, isOpen, onClose, onSuccess
       onClose()
     } catch (error) {
       console.error('❌ Error marking drawing for update:', error)
-      alert('Failed to mark drawing for update: ' + error.message)
+      toast.error('Failed to mark drawing for update: ' + error.message)
     } finally {
       setSubmitting(false)
     }
@@ -58,7 +60,7 @@ export default function UpdateRequestModal({ drawing, isOpen, onClose, onSuccess
       onClose()
     } catch (error) {
       console.error('❌ Error clearing update request:', error)
-      alert('Failed to clear update request: ' + error.message)
+      toast.error('Failed to clear update request: ' + error.message)
     } finally {
       setSubmitting(false)
     }

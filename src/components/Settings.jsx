@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { useNavigate } from 'react-router-dom'
 
 export default function Settings() {
+  const toast = useToast()
   const { user, profile, setProfile } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
@@ -59,11 +61,11 @@ export default function Settings() {
         ...profileForm
       })
 
-      alert('Profile updated successfully!')
+      toast.success('Profile updated successfully!')
       setIsEditing(false)
     } catch (error) {
       console.error('Error updating profile:', error)
-      alert('Error updating profile: ' + error.message)
+      toast.error('Error updating profile: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -73,12 +75,12 @@ export default function Settings() {
     e.preventDefault()
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      alert('Passwords do not match!')
+      toast.error('Passwords do not match!')
       return
     }
 
     if (passwordForm.newPassword.length < 6) {
-      alert('Password must be at least 6 characters long')
+      toast.error('Password must be at least 6 characters long')
       return
     }
 
@@ -91,12 +93,12 @@ export default function Settings() {
 
       if (error) throw error
 
-      alert('Password changed successfully!')
+      toast.success('Password changed successfully!')
       setShowPasswordChange(false)
       setPasswordForm({ newPassword: '', confirmPassword: '' })
     } catch (error) {
       console.error('Error changing password:', error)
-      alert('Error changing password: ' + error.message)
+      toast.error('Error changing password: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -109,13 +111,13 @@ export default function Settings() {
       navigate('/login')
     } catch (error) {
       console.error('Error logging out:', error)
-      alert('Error logging out: ' + error.message)
+      toast.error('Error logging out: ' + error.message)
     }
   }
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== 'DELETE') {
-      alert('Please type DELETE to confirm')
+      toast.error('Please type DELETE to confirm')
       return
     }
 
@@ -142,11 +144,11 @@ export default function Settings() {
         console.warn('Could not delete auth user, signing out:', authError)
       }
 
-      alert('Account deleted successfully')
+      toast.success('Account deleted successfully')
       navigate('/login')
     } catch (error) {
       console.error('Error deleting account:', error)
-      alert('Error deleting account: ' + error.message)
+      toast.error('Error deleting account: ' + error.message)
     } finally {
       setLoading(false)
     }

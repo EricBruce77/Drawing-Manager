@@ -1,7 +1,9 @@
 import { useRef, useState, useEffect } from 'react'
 import { ReactSketchCanvas } from 'react-sketch-canvas'
+import { useToast } from '../contexts/ToastContext'
 
 export default function DrawingAnnotator({ fileUrl, fileType, onSave, onCancel }) {
+  const toast = useToast()
   const canvasRef = useRef(null)
   const [strokeColor, setStrokeColor] = useState('#FF0000') // Default red
   const [strokeWidth, setStrokeWidth] = useState(3)
@@ -33,7 +35,7 @@ export default function DrawingAnnotator({ fileUrl, fileType, onSave, onCancel }
       onSave(blob)
     } catch (error) {
       console.error('Error exporting annotation:', error)
-      alert('Error saving annotations: ' + error.message)
+      toast.error('Error saving annotations: ' + error.message)
     }
   }
 

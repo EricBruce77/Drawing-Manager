@@ -2,9 +2,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { generateThumbnail } from '../utils/thumbnailGenerator'
 
 export default function UploadDrawing({ onComplete }) {
+  const toast = useToast()
   const { user } = useAuth()
   const [files, setFiles] = useState([])
   const [uploading, setUploading] = useState(false)
@@ -88,12 +90,12 @@ export default function UploadDrawing({ onComplete }) {
 
   const createProject = async () => {
     if (!newProjectName.trim()) {
-      alert('Project name is required')
+      toast.error('Project name is required')
       return
     }
 
     if (!formData.customerId) {
-      alert('Please select a customer first')
+      toast.error('Please select a customer first')
       return
     }
 
@@ -118,7 +120,7 @@ export default function UploadDrawing({ onComplete }) {
       setNewProjectName('')
       setNewProjectNumber('')
     } else {
-      alert('Error creating project: ' + error.message)
+      toast.error('Error creating project: ' + error.message)
     }
   }
 
@@ -159,12 +161,12 @@ export default function UploadDrawing({ onComplete }) {
 
   const handleUpload = async () => {
     if (files.length === 0) {
-      alert('Please select at least one file')
+      toast.error('Please select at least one file')
       return
     }
 
     if (!formData.partNumber) {
-      alert('Please enter a part number')
+      toast.error('Please enter a part number')
       return
     }
 
@@ -269,7 +271,7 @@ export default function UploadDrawing({ onComplete }) {
         }
       }
 
-      alert('Upload successful!')
+      toast.success('Upload successful!')
 
       // Reset form
       setFiles([])
@@ -288,7 +290,7 @@ export default function UploadDrawing({ onComplete }) {
 
     } catch (error) {
       console.error('Error uploading:', error)
-      alert('Error uploading files: ' + error.message)
+      toast.error('Error uploading files: ' + error.message)
     } finally {
       setUploading(false)
     }

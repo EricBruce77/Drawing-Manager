@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { usePinnedDrawings } from '../hooks/usePinnedDrawings'
 import Sidebar from '../components/Sidebar'
 import DrawingsGrid from '../components/DrawingsGrid'
 import FolderView from '../components/FolderView'
@@ -25,6 +26,40 @@ export default function Dashboard() {
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [refreshToken, setRefreshToken] = useState(0)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Sort & Pagination
+  const [sortOption, setSortOption] = useState('newest')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+
+  // Pinned drawings
+  const { pinnedIds, togglePin } = usePinnedDrawings()
+
+  // Reset page when filters/search/sort change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, selectedCustomer, selectedProject, showUpdatesOnly, showNotesOnly, showCompletedOnly, showInProgressOnly, sortOption])
+
+  // Count active filters
+  const activeFilterCount = [showUpdatesOnly, showNotesOnly, showCompletedOnly, showInProgressOnly, !!selectedCustomer, !!selectedProject].filter(Boolean).length
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const tag = e.target.tagName.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+
+      if (e.key === 'Escape' && showUploadModal) {
+        setShowUploadModal(false)
+      } else if (e.key === '/' && activeTab === 'all-drawings') {
+        e.preventDefault()
+        const input = document.querySelector('[data-search-input]')
+        if (input) input.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showUploadModal, activeTab])
 
   return (
     <div className="flex h-screen bg-slate-900" style={{ height: '100dvh' }}>
@@ -68,7 +103,17 @@ export default function Dashboard() {
               </button>
               <div className="min-w-0 flex-1">
                 <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-white truncate">
-                  {activeTab === 'all-drawings' && 'All Drawings'}
+                  {activeTab === 'all-drawings' && (
+                    <>
+                      All Drawings
+                      {totalCount > 0 && (
+                        <span className="ml-2 text-base font-normal text-slate-400">({totalCount})</span>
+                      )}
+                      {activeFilterCount > 0 && (
+                        <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-blue-600 text-white rounded-full">{activeFilterCount}</span>
+                      )}
+                    </>
+                  )}
                   {activeTab === 'upload' && 'Upload Drawings'}
                   {activeTab === 'customers' && 'Customers & Projects'}
                   {activeTab === 'projects' && 'Projects'}
@@ -150,6 +195,8 @@ export default function Dashboard() {
                   setShowCompletedOnly={setShowCompletedOnly}
                   showInProgressOnly={showInProgressOnly}
                   setShowInProgressOnly={setShowInProgressOnly}
+                  sortOption={sortOption}
+                  setSortOption={setSortOption}
                 />
               )}
 
@@ -164,6 +211,12 @@ export default function Dashboard() {
                   showCompletedOnly={showCompletedOnly}
                   showInProgressOnly={showInProgressOnly}
                   refreshToken={refreshToken}
+                  sortOption={sortOption}
+                  currentPage={currentPage}
+                  setCurrentPage={setCurrentPage}
+                  setTotalCount={setTotalCount}
+                  pinnedIds={pinnedIds}
+                  togglePin={togglePin}
                 />
               ) : (
                 <FolderView

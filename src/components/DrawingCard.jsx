@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { useToast } from '../contexts/ToastContext'
 import UpdateRequestModal from './UpdateRequestModal'
 import { normalizeThumb } from '../utils/urlHelpers'
 
-export default function DrawingCard({ drawing, onView, onDownload, showCompletionStatus = false, onStatusChange }) {
+export default function DrawingCard({ drawing, onView, onDownload, showCompletionStatus = false, onStatusChange, isPinned = false, onTogglePin }) {
+  const toast = useToast()
   const [showUpdateModal, setShowUpdateModal] = useState(false)
   const handleMarkInProgress = async (e) => {
     e.stopPropagation()
@@ -28,7 +30,7 @@ export default function DrawingCard({ drawing, onView, onDownload, showCompletio
       if (onStatusChange) onStatusChange()
     } catch (error) {
       console.error('Error updating status:', error)
-      alert('Error updating status: ' + error.message)
+      toast.error('Error updating status: ' + error.message)
     }
   }
 
@@ -55,7 +57,7 @@ export default function DrawingCard({ drawing, onView, onDownload, showCompletio
       if (onStatusChange) onStatusChange()
     } catch (error) {
       console.error('Error updating completion status:', error)
-      alert('Error updating status: ' + error.message)
+      toast.error('Error updating status: ' + error.message)
     }
   }
 
@@ -131,12 +133,18 @@ export default function DrawingCard({ drawing, onView, onDownload, showCompletio
               src={normalizeThumb(drawing.thumbnail_url)}
               alt={drawing.part_number}
               className="w-full h-full object-contain bg-slate-800"
+              loading="lazy"
             />
           ) : (
             getFileIcon(drawing.file_type)
           )}
           {getUpdateBadge()}
           {getCompletionBadge()}
+          {isPinned && (
+            <div className="absolute bottom-2 left-2 text-yellow-400 text-lg" title="Pinned">
+              &#9733;
+            </div>
+          )}
         </div>
 
       {/* Details */}
@@ -204,6 +212,18 @@ export default function DrawingCard({ drawing, onView, onDownload, showCompletio
           >
             View
           </button>
+          {onTogglePin && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onTogglePin() }}
+              className={`px-3 py-2 min-h-[44px] min-w-[44px] text-sm rounded transition-colors flex items-center justify-center ${
+                isPinned ? 'bg-yellow-600 hover:bg-yellow-700 text-white' : 'bg-slate-600 hover:bg-slate-500 text-slate-300'
+              }`}
+              title={isPinned ? 'Unpin' : 'Pin to top'}
+              aria-label={isPinned ? 'Unpin drawing' : 'Pin drawing to top'}
+            >
+              &#9733;
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -247,16 +267,6 @@ export default function DrawingCard({ drawing, onView, onDownload, showCompletio
               </button>
             </>
           )}
-          <button
-            onClick={onDownload}
-            className="px-3 py-2 min-h-[44px] min-w-[44px] bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors flex items-center justify-center"
-            title="Download"
-            aria-label="Download drawing"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-          </button>
         </div>
       </div>
     </div>

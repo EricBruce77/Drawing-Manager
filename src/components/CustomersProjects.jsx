@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import ConfirmModal from './ConfirmModal'
 
 export default function CustomersProjects() {
+  const toast = useToast()
   const { user, profile } = useAuth()
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -44,7 +46,7 @@ export default function CustomersProjects() {
       setCustomers(data || [])
     } catch (error) {
       console.error('Error fetching customers:', error)
-      alert('Error loading customers: ' + error.message)
+      toast.error('Error loading customers: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -63,13 +65,13 @@ export default function CustomersProjects() {
 
       if (error) throw error
 
-      alert('Customer added successfully!')
+      toast.success('Customer added successfully!')
       setShowAddCustomer(false)
       setCustomerForm({ name: '', code: '', description: '' })
       fetchCustomers()
     } catch (error) {
       console.error('Error adding customer:', error)
-      alert('Error adding customer: ' + error.message)
+      toast.error('Error adding customer: ' + error.message)
     }
   }
 
@@ -84,13 +86,13 @@ export default function CustomersProjects() {
 
       if (error) throw error
 
-      alert('Customer updated successfully!')
+      toast.success('Customer updated successfully!')
       setEditingCustomer(null)
       setCustomerForm({ name: '', code: '', description: '' })
       fetchCustomers()
     } catch (error) {
       console.error('Error updating customer:', error)
-      alert('Error updating customer: ' + error.message)
+      toast.error('Error updating customer: ' + error.message)
     }
   }
 
@@ -115,7 +117,7 @@ export default function CustomersProjects() {
           setCustomers(customers.filter(c => c.id !== customerId))
         } catch (error) {
           console.error('Error deleting customer:', error)
-          alert('Failed to delete customer: ' + error.message + '\nPlease check the console for details.')
+          toast.error('Failed to delete customer: ' + error.message)
         }
       }
     })
@@ -135,14 +137,14 @@ export default function CustomersProjects() {
 
       if (error) throw error
 
-      alert('Project added successfully!')
+      toast.success('Project added successfully!')
       setShowAddProject(false)
       setProjectForm({ name: '', project_number: '', description: '' })
       setSelectedCustomer(null)
       fetchCustomers()
     } catch (error) {
       console.error('Error adding project:', error)
-      alert('Error adding project: ' + error.message)
+      toast.error('Error adding project: ' + error.message)
     }
   }
 
@@ -157,13 +159,13 @@ export default function CustomersProjects() {
 
       if (error) throw error
 
-      alert('Project updated successfully!')
+      toast.success('Project updated successfully!')
       setEditingProject(null)
       setProjectForm({ name: '', project_number: '', description: '' })
       fetchCustomers()
     } catch (error) {
       console.error('Error updating project:', error)
-      alert('Error updating project: ' + error.message)
+      toast.error('Error updating project: ' + error.message)
     }
   }
 
@@ -191,7 +193,7 @@ export default function CustomersProjects() {
           })))
         } catch (error) {
           console.error('Error deleting project:', error)
-          alert('Failed to delete project: ' + error.message + '\nPlease check the console for details.')
+          toast.error('Failed to delete project: ' + error.message)
         }
       }
     })

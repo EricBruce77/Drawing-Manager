@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
-export default function SearchBar({ searchQuery, setSearchQuery, selectedCustomer, setSelectedCustomer, selectedProject, setSelectedProject, showUpdatesOnly, setShowUpdatesOnly, showNotesOnly, setShowNotesOnly, showCompletedOnly, setShowCompletedOnly, showInProgressOnly, setShowInProgressOnly }) {
+export default function SearchBar({ searchQuery, setSearchQuery, selectedCustomer, setSelectedCustomer, selectedProject, setSelectedProject, showUpdatesOnly, setShowUpdatesOnly, showNotesOnly, setShowNotesOnly, showCompletedOnly, setShowCompletedOnly, showInProgressOnly, setShowInProgressOnly, sortOption, setSortOption }) {
   const [customers, setCustomers] = useState([])
   const [projects, setProjects] = useState([])
   const [localSearchValue, setLocalSearchValue] = useState(searchQuery)
@@ -62,6 +62,7 @@ export default function SearchBar({ searchQuery, setSearchQuery, selectedCustome
               type="text"
               value={localSearchValue}
               onChange={(e) => setLocalSearchValue(e.target.value)}
+              data-search-input
               className="block w-full pl-10 pr-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Search by part number, customer name, description, or keywords..."
             />
@@ -99,6 +100,24 @@ export default function SearchBar({ searchQuery, setSearchQuery, selectedCustome
             ))}
           </select>
         </div>
+
+        {/* Sort */}
+        {setSortOption && (
+          <div className="w-full md:w-48">
+            <select
+              value={sortOption || 'newest'}
+              onChange={(e) => setSortOption(e.target.value)}
+              className="block w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="part_az">Part # A-Z</option>
+              <option value="part_za">Part # Z-A</option>
+              <option value="customer_az">Customer A-Z</option>
+              <option value="recently_updated">Recently Updated</option>
+            </select>
+          </div>
+        )}
 
         {/* Updates Only Filter */}
         <div className="flex items-center">

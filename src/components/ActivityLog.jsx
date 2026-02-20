@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 
 export default function ActivityLog() {
+  const toast = useToast()
   const { profile } = useAuth()
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
@@ -76,7 +78,7 @@ export default function ActivityLog() {
       setActivities(mergedActivities)
     } catch (error) {
       console.error('Error fetching activity log:', error)
-      alert('Error loading activity log: ' + error.message)
+      toast.error('Error loading activity log: ' + error.message)
     } finally {
       setLoading(false)
     }

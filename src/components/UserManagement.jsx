@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 
 export default function UserManagement() {
+  const toast = useToast()
   const { profile } = useAuth()
   const [allowedUsers, setAllowedUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -27,7 +29,7 @@ export default function UserManagement() {
       setAllowedUsers(data || [])
     } catch (error) {
       console.error('Error fetching allowed users:', error)
-      alert('Error loading users: ' + error.message)
+      toast.error('Error loading users: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -37,14 +39,14 @@ export default function UserManagement() {
     e.preventDefault()
 
     if (!newUserEmail.trim()) {
-      alert('Please enter an email address')
+      toast.error('Please enter an email address')
       return
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(newUserEmail)) {
-      alert('Please enter a valid email address')
+      toast.error('Please enter a valid email address')
       return
     }
 
@@ -61,21 +63,21 @@ export default function UserManagement() {
 
       if (error) {
         if (error.code === '23505') { // Unique violation
-          alert('This email is already in the allowed users list')
+          toast.error('This email is already in the allowed users list')
         } else {
           throw error
         }
         return
       }
 
-      alert('User added successfully!')
+      toast.success('User added successfully!')
       setShowAddUser(false)
       setNewUserEmail('')
       setNewUserNotes('')
       fetchAllowedUsers()
     } catch (error) {
       console.error('Error adding user:', error)
-      alert('Error adding user: ' + error.message)
+      toast.error('Error adding user: ' + error.message)
     }
   }
 
@@ -91,7 +93,7 @@ export default function UserManagement() {
       fetchAllowedUsers()
     } catch (error) {
       console.error('Error updating user:', error)
-      alert('Error updating user: ' + error.message)
+      toast.error('Error updating user: ' + error.message)
     }
   }
 
@@ -108,11 +110,11 @@ export default function UserManagement() {
 
       if (error) throw error
 
-      alert('User removed successfully!')
+      toast.success('User removed successfully!')
       fetchAllowedUsers()
     } catch (error) {
       console.error('Error removing user:', error)
-      alert('Error removing user: ' + error.message)
+      toast.error('Error removing user: ' + error.message)
     }
   }
 
