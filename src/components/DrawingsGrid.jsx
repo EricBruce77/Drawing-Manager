@@ -39,7 +39,7 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
         (payload) => {
           console.log('New drawing added:', payload.new)
           // Refresh drawings when a new one is inserted
-          fetchDrawings()
+          fetchDrawings(false)
         }
       )
       .on(
@@ -52,7 +52,7 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
         (payload) => {
           console.log('Drawing updated:', payload.new)
           // Refresh when a drawing is updated
-          fetchDrawings()
+          fetchDrawings(false)
         }
       )
       .on(
@@ -65,7 +65,7 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
         (payload) => {
           console.log('Drawing deleted:', payload.old)
           // Refresh when a drawing is deleted
-          fetchDrawings()
+          fetchDrawings(false)
         }
       )
       .subscribe()
@@ -113,8 +113,8 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
     return filteredQuery
   }
 
-  const fetchDrawings = async () => {
-    setLoading(true)
+  const fetchDrawings = async (showLoading = true) => {
+    if (showLoading) setLoading(true)
     try {
       // Normalize search query: trim and lowercase for consistency
       const normalizedQuery = searchQuery?.trim()
@@ -423,7 +423,7 @@ export default function DrawingsGrid({ searchQuery, selectedCustomer, selectedPr
               onView={() => !selectMode && setSelectedDrawing(drawing)}
               onDownload={() => handleDownload(drawing)}
               showCompletionStatus={!selectMode}
-              onStatusChange={fetchDrawings}
+              onStatusChange={() => fetchDrawings(false)}
             />
           </div>
         ))}
