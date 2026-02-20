@@ -1,6 +1,25 @@
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 
+// Generate a consistent color from a name string
+function getAvatarColor(name) {
+  const colors = [
+    'from-blue-500 to-blue-600',
+    'from-emerald-500 to-emerald-600',
+    'from-violet-500 to-violet-600',
+    'from-amber-500 to-amber-600',
+    'from-rose-500 to-rose-600',
+    'from-cyan-500 to-cyan-600',
+    'from-fuchsia-500 to-fuchsia-600',
+    'from-orange-500 to-orange-600',
+  ]
+  let hash = 0
+  for (let i = 0; i < (name || '').length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return colors[Math.abs(hash) % colors.length]
+}
+
 export default function Sidebar({ activeTab, setActiveTab, onClose, className = '' }) {
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
@@ -10,7 +29,7 @@ export default function Sidebar({ activeTab, setActiveTab, onClose, className = 
     navigate('/')
   }
 
-  const menuItems = [
+  const mainItems = [
     {
       id: 'all-drawings',
       label: 'All Drawings',
@@ -31,6 +50,9 @@ export default function Sidebar({ activeTab, setActiveTab, onClose, className = 
       ),
       roles: ['admin', 'engineer', 'viewer'],
     },
+  ]
+
+  const managementItems = [
     {
       id: 'customers',
       label: 'Customers',
@@ -71,6 +93,9 @@ export default function Sidebar({ activeTab, setActiveTab, onClose, className = 
       ),
       roles: ['admin'],
     },
+  ]
+
+  const bottomItems = [
     {
       id: 'settings',
       label: 'Settings',
@@ -88,19 +113,46 @@ export default function Sidebar({ activeTab, setActiveTab, onClose, className = 
     return item.roles.includes(profile?.role)
   }
 
+  const renderNavItem = (item) => {
+    if (!canAccessItem(item)) return null
+    const isActive = activeTab === item.id
+    return (
+      <button
+        key={item.id}
+        onClick={() => setActiveTab(item.id)}
+        className={`group w-full flex items-center gap-3 px-4 py-2.5 min-h-[44px] rounded-lg transition-all duration-150 text-sm relative ${
+          isActive
+            ? 'bg-blue-600/15 text-blue-400 font-semibold'
+            : 'text-slate-400 hover:bg-slate-700/60 hover:text-white hover:translate-x-0.5'
+        }`}
+      >
+        {/* Active indicator bar */}
+        {isActive && (
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-blue-500 rounded-r-full" />
+        )}
+        <span className={`transition-colors ${isActive ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-300'}`}>
+          {item.icon}
+        </span>
+        <span>{item.label}</span>
+      </button>
+    )
+  }
+
+  const avatarColor = getAvatarColor(profile?.full_name)
+
   return (
     <div className={`w-64 bg-slate-800 border-r border-slate-700 flex flex-col max-h-screen ${className}`}>
       {/* Logo/Brand */}
-      <div className="p-4 sm:p-6 border-b border-slate-700 flex items-center justify-between flex-shrink-0">
+      <div className="p-4 sm:p-5 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
           <div>
-            <h2 className="text-white font-bold text-base sm:text-lg">ARO Tech</h2>
-            <p className="text-slate-400 text-xs">Drawings</p>
+            <h2 className="text-white font-bold text-base tracking-tight">ARO Tech</h2>
+            <p className="text-slate-500 text-xs font-medium">Drawing Manager</p>
           </div>
         </div>
         {onClose && (
@@ -116,46 +168,49 @@ export default function Sidebar({ activeTab, setActiveTab, onClose, className = 
         )}
       </div>
 
-      {/* Navigation - scrollable on mobile */}
-      <nav className="flex-1 p-3 sm:p-4 space-y-2 overflow-y-auto">
-        {menuItems.map((item) => (
-          canAccessItem(item) && (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg transition-colors text-base ${
-                activeTab === item.id
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-              }`}
-            >
-              {item.icon}
-              <span className="font-medium">{item.label}</span>
-            </button>
-          )
-        ))}
+      {/* Accent line */}
+      <div className="h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent" />
+
+      {/* Navigation */}
+      <nav className="flex-1 px-3 pt-4 pb-2 overflow-y-auto space-y-5">
+        {/* Main section */}
+        <div className="space-y-1">
+          <p className="px-4 text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-2">Main</p>
+          {mainItems.map(renderNavItem)}
+        </div>
+
+        {/* Management section */}
+        <div className="space-y-1">
+          <p className="px-4 text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-2">Management</p>
+          {managementItems.map(renderNavItem)}
+        </div>
+
+        {/* Settings */}
+        <div className="space-y-1">
+          {bottomItems.map(renderNavItem)}
+        </div>
       </nav>
 
       {/* User Profile & Logout */}
-      <div className="p-3 sm:p-4 border-t border-slate-700 flex-shrink-0">
-        <div className="flex items-center gap-3 px-3 sm:px-4 py-3 bg-slate-700/50 rounded-lg mb-2">
-          <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-sm font-medium">
-              {profile?.full_name?.charAt(0) || 'U'}
+      <div className="p-3 border-t border-slate-700/60 flex-shrink-0">
+        <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg mb-2">
+          <div className={`w-9 h-9 bg-gradient-to-br ${avatarColor} rounded-full flex items-center justify-center flex-shrink-0 shadow-sm`}>
+            <span className="text-white text-sm font-bold">
+              {profile?.full_name?.charAt(0)?.toUpperCase() || 'U'}
             </span>
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-white text-sm font-medium truncate">
               {profile?.full_name}
             </p>
-            <p className="text-slate-400 text-xs capitalize">
+            <p className="text-slate-500 text-xs capitalize">
               {profile?.role}
             </p>
           </div>
         </div>
         <button
           onClick={handleSignOut}
-          className="w-full px-4 py-3 min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2 text-base"
+          className="w-full px-4 py-2.5 min-h-[44px] bg-slate-700/40 hover:bg-red-600/15 text-slate-400 hover:text-red-400 rounded-lg transition-all duration-150 flex items-center justify-center gap-2 text-sm font-medium"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
