@@ -3,7 +3,6 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import SnakeGame from './components/SnakeGame'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -53,15 +52,6 @@ function App() {
               <ProtectedRoute>
                 <Dashboard />
               </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/snake"
-            element={
-              <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
-                <h1 className="text-2xl font-bold text-white mb-6">Snake Game</h1>
-                <SnakeGame />
-              </div>
             }
           />
         </Routes>
